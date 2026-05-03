@@ -1,5 +1,10 @@
 ### This file contains commands to set up the network interfaces and run the processing script.
 
+ls /dev/tty.*
+sudo ifconfig en7 inet 192.168.33.30 delete
+
+
+
 conda activate radar
 
 # Set up network interfaces for radar 1

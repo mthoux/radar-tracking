@@ -1,4 +1,3 @@
-from . import realtime_streaming_config
 from . import realtime_streaming
 from gtrack.config import (GTrackConfig2D)
 import numpy as np

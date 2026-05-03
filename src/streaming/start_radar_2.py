@@ -15,8 +15,10 @@ def main():
     cfg_file = "../configs/profile_super.cfg"
     radar = Radar(
         config_port="/dev/tty.usbmodemR20910491",
+        #config_port="/dev/tty.usbmodem13",
         config_baudrate=115200,
         data_port="/dev/tty.usbmodemR20910494",
+        #data_port="/dev/tty.usbmodem14",
         data_baudrate=921600,
         config_filename=cfg_file,
         initialize_connection_and_radar=True,
