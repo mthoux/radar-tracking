@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Venv
+venv/
+env/
+.venv/
+.env
+
+# System
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+.idea/
+
+# Data
+*.log
+data/raw/
+temp/
