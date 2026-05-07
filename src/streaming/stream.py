@@ -1,4 +1,4 @@
-from . import realtime_streaming
+from . import realtime_streaming_refactored
 from gtrack.config import (GTrackConfig2D)
 import numpy as np
 
@@ -21,6 +21,7 @@ def main():
 
     # Radar  parameters
     cfg_radar = {
+        "nb_radar" : 1,
         "range_idx": r_idxs,
         "phi": phi,
         "width": width,
@@ -75,7 +76,7 @@ def main():
     print("⌛️ Starting streaming...")
 
     # Start the streaming process
-    realtime_streaming.main(cfg_radar, cfg_gtrack, cfg_cfar)
+    realtime_streaming_refactored.main(cfg_radar, cfg_gtrack, cfg_cfar)
 
 if __name__ == "__main__":
     main()

@@ -8,7 +8,7 @@ def main():
     """
 
     # Specific ethernet configuration for this radar
-    radar_2_config = {
+    dca_radar_2_config = {
         "dataLoggingMode": "raw",
         "dataTransferMode": "LVDSCapture",
         "dataCaptureMode": "ethernetStream",
@@ -32,7 +32,7 @@ def main():
 
     # Initialize the DCA1000EVM
     print("Starting radar 2...")
-    dca = dca1000.DCA1000(config=radar_2_config)
+    dca = dca1000.DCA1000(config=dca_radar_2_config)
 
     # Initialize the radar
     cfg_file = "../configs/profile_super.cfg"
