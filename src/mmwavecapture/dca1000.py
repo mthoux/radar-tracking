@@ -102,8 +102,11 @@ class DCA1000Config:
         },
     }
 
-    def __init__(self):
-        self._config = deepcopy(self.default_config)
+    def __init__(self, custom_config: dict = None):
+        if custom_config:
+            self._config = deepcopy(custom_config)
+        else:
+            self._config = deepcopy(self.default_config)
 
     @property
     def config(self) -> dict[str, Any]:
@@ -193,8 +196,8 @@ class DCA1000:
 
         return wrapped
 
-    def __init__(self) -> None:
-        self.config = DCA1000Config()
+    def __init__(self, config: dict = None) -> None:
+        self.config = DCA1000Config(custom_config=config)
         self.socks = {}
 
         self.socks = self._init_sockets()

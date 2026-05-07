@@ -1,9 +1,7 @@
 ### This file contains commands to set up the network interfaces and run the processing script.
 
-ls /dev/tty.*
-sudo ifconfig en7 inet 192.168.33.30 delete
-
-
+# Show the current network interfaces
+ifconfig
 
 conda activate radar
 
@@ -16,13 +14,22 @@ sudo route delete -net 192.168.33.0/24
 
 # Set up network interfaces for radar 2
 sudo ifconfig en7 inet 192.168.33.32 netmask 255.255.255.0 up
-
 python -m streaming.start_radar_2
+
+# Run the processing script
+python -m streaming.stream
+
+
+
+
+
+
+
+
+
 
 //===========
 
-# Show the current network interfaces
-ifconfig
 
 # Show all the routes (for 192.168.33)
 netstat -rn | grep 192\.168\.33
