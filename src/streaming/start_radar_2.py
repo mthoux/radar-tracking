@@ -1,5 +1,5 @@
 from mmwavecapture.radar import Radar
-from mmwavecapture import dca1000_2
+from mmwavecapture import dca1000
 
 
 def main():
@@ -7,9 +7,32 @@ def main():
     Main function to start the AWR1843BOOST and DCA1000EVM with custom configuration.
     """
 
+    # Specific ethernet configuration for this radar
+    radar_2_config = {
+        "dataLoggingMode": "raw",
+        "dataTransferMode": "LVDSCapture",
+        "dataCaptureMode": "ethernetStream",
+        "lvdsMode": 2,
+        "dataFormatMode": 3,
+        "packetDelay_us": 5,
+        "ethernetConfig": {
+            "systemIPAddress": "192.168.33.32",
+            "DCA1000IPAddress": "192.168.33.182",
+            "DCA1000ConfigPort": 4099,
+            "DCA1000DataPort": 5000,
+        },
+        "ethernetConfigUpdate": {
+            "systemIPAddress": "192.168.33.32",
+            "DCA1000IPAddress": "192.168.33.182",
+            "DCA1000MACAddress": "12-34-56-78-90-13",
+            "DCA1000ConfigPort": 4099,
+            "DCA1000DataPort": 5000,
+        },
+    }
+
     # Initialize the DCA1000EVM
-    print("Starting radar...")
-    dca = dca1000_2.DCA1000()
+    print("Starting radar 2...")
+    dca = dca1000.DCA1000(config=radar_2_config)
 
     # Initialize the radar
     cfg_file = "../configs/profile_super.cfg"

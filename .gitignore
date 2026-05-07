@@ -1,1 +1,30 @@
-/__pycache__
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Venv
+.venv/
+venv/
+env/
+bin/
+include/
+lib/
+share/
+
+# Data
+*.bin
+*.dat
+*.mat
+*.npy
+
+# Configuration and logs
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/
