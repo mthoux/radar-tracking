@@ -1,3 +1,5 @@
+import argparse
+from src.streaming import realtime_streaming
 from . import realtime_streaming_refactored
 from gtrack.config import (GTrackConfig2D)
 import numpy as np
@@ -7,6 +9,11 @@ def main():
     """
     Main function to start the real-time radar streaming and processing.
     """
+
+    #Hyperparameters for the streaming and processing pipeline
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--wall", action="store_true", help="Enable through-wall detection.")
+    args = parser.parse_args()
 
     # Parameters for the range-azimuth beamforming
     r_idxs = np.arange(0, 100, 1)
@@ -21,6 +28,11 @@ def main():
 
     # Radar  parameters
     cfg_radar = {
+        "wall": args.wall,
+        "wall_params": {
+        "L_wall_squared": 4,   # adjust for your wall material
+        "sigma": 0.75
+        },
         "nb_radar" : 1,
         "range_idx": r_idxs,
         "phi": phi,
@@ -76,7 +88,7 @@ def main():
     print("⌛️ Starting streaming...")
 
     # Start the streaming process
-    realtime_streaming_refactored.main(cfg_radar, cfg_gtrack, cfg_cfar)
+    realtime_streaming.main(cfg_radar, cfg_gtrack, cfg_cfar)
 
 if __name__ == "__main__":
     main()

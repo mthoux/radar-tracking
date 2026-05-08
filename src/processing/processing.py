@@ -202,3 +202,37 @@ def compute_dbscan(output_top, r_idxs, phi, eps=0.5, min_samples=5, p_treshold= 
 
     return db
 
+def apply_wall_compensation(power_map, radar_params, wall_params):
+    """
+    Compensates for two-way wall transmission loss on the power map.
+
+    The received power behind a wall follows:
+        P_r = (Pt * G^2 * lm^2 * sigma) / ((4pi)^3 * R^4 * L_wall^2)
+
+    We reverse the L_wall^2 attenuation by scaling each range bin of the
+    power map by L_wall^2, restoring target visibility behind the wall.
+
+    Parameters
+    ----------
+    power_map : 2D np.ndarray
+        The power map of shape (N_range, N_doppler).
+    radar_params : dict
+        Must contain 'range_idx' (array of range bin indices) and 'lm' (wavelength).
+    wall_params : dict
+        Must contain:
+            - 'L_wall_squared' : two-way loss factor (e.g. 4 for plywood, 1000 for concrete)
+            - 'sigma'          : human RCS in m² (e.g. 0.75)
+
+    Returns
+    -------
+    compensated_map : 2D np.ndarray
+        Power map after wall loss compensation.
+    """
+
+    L_wall_sq = wall_params["L_wall_squared"]
+
+    # Scale the entire power map by L_wall^2 to undo the two-way attenuation
+    compensated_map = power_map * L_wall_sq
+
+    return compensated_map
+
