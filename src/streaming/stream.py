@@ -78,7 +78,7 @@ def main():
     print("⌛️ Starting streaming...")
 
     # Start the streaming process
-    realtime_streaming.main(cfg_radar, cfg_gtrack, cfg_cfar)
+    realtime_streaming_fall.main(cfg_radar, cfg_gtrack, cfg_cfar)
 
 if __name__ == "__main__":
     main()
