@@ -1,6 +1,6 @@
-from . import realtime_streaming
-from . import realtime_streaming_refactored
 from . import realtime_streaming_fall
+from . import realtime_streaming_refactored
+from . import realtime_streaming
 from gtrack.config import (GTrackConfig2D)
 import numpy as np
 
