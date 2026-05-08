@@ -1,4 +1,7 @@
 from . import realtime_streaming_refactored
+from . import realtime_streaming
+from . import realtime_streaming_lrnbg
+
 from gtrack.config import (GTrackConfig2D)
 import numpy as np
 
@@ -52,7 +55,7 @@ def main():
     # Parameters for Gtrack
     cfg_gtrack = GTrackConfig2D(
         max_points=200,  # max detections per frame
-        max_tracks=5,  # max simultaneous tracks
+        max_tracks=2,  # max simultaneous tracks
         dt=0.6,  # time between frames (s)
         process_noise=0.5,  # Q spectral density
         meas_noise_range=2.0,  # σ² range noise (m²)
@@ -76,7 +79,8 @@ def main():
     print("⌛️ Starting streaming...")
 
     # Start the streaming process
-    realtime_streaming_refactored.main(cfg_radar, cfg_gtrack, cfg_cfar)
+    #realtime_streaming_refactored.main(cfg_radar, cfg_gtrack, cfg_cfar)
+    realtime_streaming.main(cfg_radar, cfg_gtrack, cfg_cfar)
 
 if __name__ == "__main__":
     main()
