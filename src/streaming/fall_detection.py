@@ -12,9 +12,9 @@ class FallDetector:
     les pertes de détection temporaires dues au bruit radar.
     """
 
-    def __init__(self, fall_threshold_frames=40, grace_frames=10):
+    def __init__(self, fall_threshold_frames=80, grace_frames=30):
         self.fall_threshold = fall_threshold_frames
-        self.grace_frames   = grace_frames
+        self.grace_frames   = grace_frames  #pas utilisé
 
         # {track_id: nb de frames consécutives sans détection}
         self.miss_counter: dict[int, int] = {}
