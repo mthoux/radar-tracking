@@ -92,21 +92,34 @@ class MyApp(ShowBase):
         self.tracker = GTrackModule2D(cfg_gtrack)
         
         # Instantiation of the fall detector
-        self.fall_detector = FallDetector(fall_threshold_frames=15)
+        self.fall_detector = FallDetector(fall_threshold_frames=40)
+
+        # Historique de chutes
+        self.fall_log_text = self.ax_3.text(
+            1.02, 1.0, "Chutes :\n—",
+            transform=self.ax_3.transAxes,
+            fontsize=8, color='red', verticalalignment='top'
+        )
 
         self.last_artists = []
 
-      
     def _on_fall_detected(self, event: dict):
         """Appelé une fois par chute détectée."""
         tid   = event["track_id"]
-        count = event["missing_frames"]
-        
+        ts    = time.strftime("%H:%M:%S", time.localtime(event["timestamp"]))
+
         # Affichage sur la figure
         self.ax_3.set_title(
-            f"⚠ CHUTE détectée — track {tid} ({count} frames)",
+            f"⚠ CHUTE détectée — track {tid} à {ts}",
             color="red", fontweight="bold"
         )
+
+        # Historique complet dans le coin
+        lines = [
+            f"{time.strftime('%H:%M:%S', time.localtime(e['timestamp']))} — track {e['track_id']}"
+            for e in self.fall_detector.fall_events
+        ]
+        self.fall_log_text.set_text("Chutes :\n" + "\n".join(lines))
 
 
     def updateTask(self, task):
