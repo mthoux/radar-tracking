@@ -30,7 +30,7 @@ class GTrackModule2D:
         self.candidates: dict[int, dict] = {}
         self.candidate_counter = 0
         self.recycled_ids: list[int] = []  # IDs libérés à réutiliser
-        self.confirm_threshold = 5  # frames avant confirmation
+        self.confirm_threshold = 15  # frames avant confirmation
 
     def _build_matrices(self, cfg: GTrackConfig2D):
         """
@@ -121,29 +121,6 @@ class GTrackModule2D:
                 pt.assigned_id = -1
                 pt.is_unique = False
 
-    def _match_candidate(self, cluster, dist_threshold=0.5):
-        """
-        Cherche si un cluster correspond à une candidate existante
-        basé sur la distance entre les centres.
-        """
-        if not self.candidates:
-            return None
-
-        # Centre du cluster entrant
-        new_cx = np.mean([pt.range * np.sin(pt.azimuth) for pt in cluster])
-        new_cy = np.mean([pt.range * np.cos(pt.azimuth) for pt in cluster])
-
-        best_cid, best_dist = None, dist_threshold
-        for cid, cand in self.candidates.items():
-            cx = np.mean([pt.range * np.sin(pt.azimuth) for pt in cand['cluster']])
-            cy = np.mean([pt.range * np.cos(pt.azimuth) for pt in cand['cluster']])
-            dist = np.hypot(new_cx - cx, new_cy - cy)
-            if dist < best_dist:
-                best_dist = dist
-                best_cid = cid
-
-        return best_cid
-
     def _allocate(self, points):
         cfg = self.config
         seeds = [pt for pt in points if pt.assigned_id == -1]
@@ -196,6 +173,29 @@ class GTrackModule2D:
                     cid = self.candidate_counter
                     self.candidate_counter += 1
                 self.candidates[cid] = {'cluster': cluster, 'count': 1}
+
+    def _match_candidate(self, cluster, dist_threshold=0.5):
+        """
+        Cherche si un cluster correspond à une candidate existante
+        basé sur la distance entre les centres.
+        """
+        if not self.candidates:
+            return None
+
+        # Centre du cluster entrant
+        new_cx = np.mean([pt.range * np.sin(pt.azimuth) for pt in cluster])
+        new_cy = np.mean([pt.range * np.cos(pt.azimuth) for pt in cluster])
+
+        best_cid, best_dist = None, dist_threshold
+        for cid, cand in self.candidates.items():
+            cx = np.mean([pt.range * np.sin(pt.azimuth) for pt in cand['cluster']])
+            cy = np.mean([pt.range * np.cos(pt.azimuth) for pt in cand['cluster']])
+            dist = np.hypot(new_cx - cx, new_cy - cy)
+            if dist < best_dist:
+                best_dist = dist
+                best_cid = cid
+
+        return best_cid
 
     def _reclaim(self, unit):
         """
