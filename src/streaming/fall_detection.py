@@ -12,7 +12,7 @@ class FallDetector:
     les pertes de détection temporaires dues au bruit radar.
     """
 
-    def __init__(self, fall_threshold_frames=10, grace_frames=3):
+    def __init__(self, fall_threshold_frames=40, grace_frames=10):
         self.fall_threshold = fall_threshold_frames
         self.grace_frames   = grace_frames
 
@@ -44,7 +44,7 @@ class FallDetector:
             self.miss_counter[tid] = 0
 
         # Nettoyer les tracks vraiment disparues (> seuil) et alerter
-        for tid, count in self.miss_counter.items():
+        for tid, count in list(self.miss_counter.items()):
             if count >= self.fall_threshold and tid not in self.alerted_ids:
                 event = {
                     "track_id":      tid,
