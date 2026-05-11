@@ -55,11 +55,11 @@ def main():
     cfg_gtrack = GTrackConfig2D(
         max_points=200,  # max detections per frame
         max_tracks=5,  # max simultaneous tracks
-        dt=0.2,  # time between frames (s)
+        dt=0.6,  # time between frames (s)
         process_noise=0.5,  # Q spectral density
         meas_noise_range=2.0,  # σ² range noise (m²)
         meas_noise_az=1,  # σ² azimuth noise (rad²)
-        gating_threshold=6,  # ≈95% gate for 2-DOF chi²
+        gating_threshold=16,  # ≈95% gate for 2-DOF chi²
         alloc_range_gate=0.5,  # cluster gate (m)
         alloc_az_gate=np.deg2rad(10),  # cluster gate (rad)
         alloc_vel_gate=20,  # cluster gate (m/s)
