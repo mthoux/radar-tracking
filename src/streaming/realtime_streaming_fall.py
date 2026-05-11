@@ -92,7 +92,7 @@ class MyApp(ShowBase):
         self.tracker = GTrackModule2D(cfg_gtrack)
         
         # Instantiation of the fall detector
-        self.fall_detector = FallDetector(fall_threshold_frames=40)
+        self.fall_detector = FallDetector(fall_threshold_frames=20)
 
         # Historique de chutes
         self.fall_log_text = self.ax_3.text(
