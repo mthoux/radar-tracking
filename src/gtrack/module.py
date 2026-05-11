@@ -168,8 +168,8 @@ class GTrackModule2D:
             else:
                 # Nouvelle candidate
                 if self.recycled_ids:
-                    min = self.recycled_ids.index(min(self.recycled_ids))
-                    cid = self.recycled_ids.pop(min)
+                    minimum = self.recycled_ids.index(min(self.recycled_ids))
+                    cid = self.recycled_ids.pop(minimum)
                 else:
                     cid = self.candidate_counter
                     self.candidate_counter += 1
