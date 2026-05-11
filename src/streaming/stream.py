@@ -84,12 +84,12 @@ def main():
     # Parameters for Gtrack
     cfg_gtrack = GTrackConfig2D(
         max_points=200,  # max detections per frame
-        max_tracks=2,  # max simultaneous tracks
+        max_tracks=5,  # max simultaneous tracks
         dt=0.6,  # time between frames (s)
         process_noise=0.5,  # Q spectral density
         meas_noise_range=2.0,  # σ² range noise (m²)
         meas_noise_az=1,  # σ² azimuth noise (rad²)
-        gating_threshold=16,  # ≈95% gate for 2-DOF chi²
+        gating_threshold=6,  # ≈95% gate for 2-DOF chi²
         alloc_range_gate=0.5,  # cluster gate (m)
         alloc_az_gate=np.deg2rad(10),  # cluster gate (rad)
         alloc_vel_gate=20,  # cluster gate (m/s)
@@ -97,7 +97,7 @@ def main():
         alloc_snr_threshold=1,  # sum-SNR threshold
         min_snr_threshold=0.01,  # min SNR for new track
         init_state_cov=1.0,  # starting P for new tracks
-        det_to_active_count=12,  # hits needed to go ACTIVE
+        det_to_active_count=1,  # hits needed to go ACTIVE
         det_to_free_count=3,  # misses to drop DETECTION
         act_to_free_count=8,  # misses to drop ACTIVE
         presence_zones=[],  # e.g. [PresenceZone2D(-10,10,-5,5)]

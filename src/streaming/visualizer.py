@@ -1,79 +1,115 @@
 import sys
+import time
 import warnings
+from PyQt5 import QtWidgets
+from matplotlib.gridspec import GridSpec
+import matplotlib.pyplot as plt
+from direct.showbase.ShowBase import ShowBase
+from direct.task import Task
+from panda3d.core import loadPrcFileData
+
+# Internal visualization imports
+from visualization.visualization import (
+    configure_ax_bf, 
+    configure_ax_db, 
+    configure_ax_gtrack, 
+    update_ax_gtrack
+)
+
+# Initial configurations
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
-import time
-
-from direct.showbase.ShowBase import ShowBase
-from direct.task import Task
-
 import matplotlib
 matplotlib.use('Qt5Agg')  # Use TkAgg backend for interactive plotting
-import matplotlib.pyplot as plt
 plt.style.use('seaborn-v0_8-dark')
 
-from panda3d.core import loadPrcFileData
-loadPrcFileData('', 'window-type none')   # no native GL window
-
-from PyQt5 import QtWidgets
-
-from visualization.visualization import configure_ax_bf, configure_ax_db, configure_ax_gtrack, update_ax_gtrack
-from matplotlib.gridspec import GridSpec
-
+# Disable native Panda3D window
+loadPrcFileData('', 'window-type none')
 
 class Visualizer(ShowBase):
+    """
+    Main visualization class handling radar heatmap and tracking display.
+    Inherits from Panda3D ShowBase to manage tasks.
+    """
     def __init__(self, queue_out, cfg_radar, stop_event):
         ShowBase.__init__(self)
-        self.q_out = queue_out  # On ne reçoit plus que la queue de sortie du Processor
+        self.q_out = queue_out
         self.stop_event = stop_event
 
-        # Config minimale pour l'affichage
+        # Display parameters from config
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
 
-        # Préparation Matplotlib (inchangé)
+        # Matplotlib figure initialization
         gs = GridSpec(1, 2, width_ratios=[1, 1.5])
         self.fig = plt.figure(figsize=(12, 8))
+        
+        # Polar axis for Beamforming Heatmap
         self.ax = self.fig.add_subplot(gs[0], projection='polar')
         self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs)
 
+        # Cartesian axis for GTrack display
         self.ax_3 = self.fig.add_subplot(gs[1])
         configure_ax_gtrack(self.ax_3, cfg_radar["width"], len(self.r_idxs))
 
+        # Artists and UI elements
         self.last_artists = []
         self.fps_text = self.ax_3.text(0.00, 1.05, "", transform=self.ax_3.transAxes, fontsize=10, color='blue')
 
-        # Gestion du temps pour les FPS
+        # FPS calculation state
         self.last_fps_time = time.time()
         self.frame_counter = 0
 
-        # Connexion fermeture fenêtre
+        # Event connections
         self.fig.canvas.mpl_connect('close_event', self.on_close)
 
-        # Lancement de la tâche de mise à jour graphique
+        # Launch the update task
         self.taskMgr.add(self.updateTask, "updateTask")
 
+        # Texte pour le log des chutes (à gauche ou droite selon tes besoins)
+        self.fall_log_text = self.ax_3.text(
+            1.02, 1.0, "Chutes :\n—",
+            transform=self.ax_3.transAxes,
+            fontsize=8, color='red', verticalalignment='top'
+        )
+
     def updateTask(self, task):
-        # On vide la file pour ne garder que la donnée la plus récente (anti-lag)
+        """
+        Panda3D task that updates the plots with the latest data from the queue.
+        """
+        # Drain the queue to keep only the latest data (anti-lag)
         data = None
         while not self.q_out.empty():
             data = self.q_out.get_nowait()
 
         if data is not None:
-            # 1. Mise à jour de la Heatmap
-            self.im.set_array(data["heatmap"].ravel())
 
-            # 2. Mise à jour du Tracking
+            # 1. Update Heatmap & Tracks
+            self.im.set_array(data["heatmap"].ravel())
             update_ax_gtrack(self.ax_3, data["tracks"], self.last_artists)
 
-            # 3. Mise à jour du titre (Learning ou non)
+            # 2. Update Title based on learning state
             if data["learning_left"] > 0:
                 self.ax.set_title(f"Learning background... ({data['learning_left']} frames left)")
             else:
                 self.ax.set_title("Radar Active")
 
-            # 4. Calcul FPS (affichage uniquement)
+            # 3. Update Fall Log & Title
+            if data.get("fall_events"):
+                # On prend le dernier événement pour le titre
+                last_event = data["fall_events"][-1]
+                ts = time.strftime("%H:%M:%S", time.localtime(last_event["timestamp"]))
+                self.ax_3.set_title(f"⚠ CHUTE : Track {last_event['track_id']} à {ts}", color="red")
+
+            # Mise à jour de l'historique complet
+            history = [
+                f"{time.strftime('%H:%M:%S', time.localtime(e['timestamp']))} - ID {e['track_id']}"
+                for e in data.get("all_falls", [])
+            ]
+            self.fall_log_text.set_text("Chutes :\n" + "\n".join(history[-5:])) # Affiche les 5 dernières
+
+            # 4. Calculate FPS
             self.frame_counter += 1
             current_time = time.time()
             if current_time - self.last_fps_time >= 1.0:
@@ -82,14 +118,16 @@ class Visualizer(ShowBase):
                 self.last_fps_time = current_time
                 self.frame_counter = 0
 
-            # 5. Rendu
+            # 5. Render update
             self.fig.canvas.draw_idle()
             QtWidgets.QApplication.processEvents()
-
             plt.pause(0.005)
 
         return Task.cont
 
     def on_close(self, event):
+        """
+        Callback for window closure.
+        """
         self.stop_event.set()
         sys.exit(0)

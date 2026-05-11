@@ -8,6 +8,7 @@ from typing import Dict, Any, List
 # Local imports
 from gtrack.config import Detection
 from gtrack.module import GTrackModule2D
+from .fall_detection import FallDetector
 
 # Global configuration to avoid COM initialization issues on some systems
 warnings.simplefilter("ignore", UserWarning)
@@ -74,6 +75,10 @@ class Processor:
             (R_MESH * np.cos(PHI_MESH)).ravel()  # x-coord on cartesian grid
         ))
         self.POLAR_SHAPE = PHI_MESH.shape
+
+        # Initialisation du détecteur de chute
+        self.fall_detector = FallDetector(fall_threshold_frames=20)
+        self.last_fps = 20.0 # Valeur par défaut pour le seuil initial
 
     def _get_latest_from_queues(self):
         """
@@ -144,14 +149,25 @@ class Processor:
             ]
             
             gtrack_output = self.tracker.step(detections)
+            tracks = gtrack_output.get('tracks', [])
+
+            # --- LOGIQUE DE DETECTION DE CHUTE ---
+            # 1. Mise à jour des positions pour le détecteur
+            for t in tracks:
+                self.fall_detector.last_positions[t['uid']] = (t['pos'][0], t['pos'][1])
+
+            # 2. Détection
+            active_ids = {t['uid'] for t in tracks}
+            fall_events = self.fall_detector.update(active_ids)
 
             # --- DATA OUTPUT ---
-            # Send results to the visualizer queue without blocking
             try:
                 if not self.q_out.full():
                     self.q_out.put_nowait({
                         "heatmap": to_plot,
-                        "tracks": gtrack_output.get('tracks', []),
+                        "tracks": tracks,
+                        "fall_events": fall_events, # On envoie les nouveaux événements
+                        "all_falls": self.fall_detector.fall_events, # Historique complet
                         "learning_left": max(0, self.CLUTTER_LEARN_LIMIT - len(self.clutter_frames))
                     })
             except:
