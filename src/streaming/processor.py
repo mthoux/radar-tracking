@@ -4,6 +4,7 @@ import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from direct.task import Task
 from typing import Dict, Any, List
+import serial
 
 # Local imports
 from gtrack.config import Detection
@@ -79,6 +80,15 @@ class Processor:
         # Initialisation du détecteur de chute
         self.fall_detector = FallDetector(fall_threshold_frames=20)
         self.last_fps = 20.0 # Valeur par défaut pour le seuil initial
+
+        # ARDUINO OPTIONNEL
+        self.arduino = None
+        try:
+            # Remplace 'COM3' par ton port (ex: '/dev/ttyACM0' sur Linux)
+            self.arduino = serial.Serial('/dev/tty.usbmodem11201', 9600, timeout=0.1)
+            print("✅ Arduino détecté et connecté.")
+        except Exception as e:
+            print(f"⚠️ Arduino non détecté : {e}. Mode sans LED activé.")
 
     def _get_latest_from_queues(self):
         """
@@ -160,6 +170,25 @@ class Processor:
             # 2. Détection
             active_ids = {t['uid'] for t in tracks}
             fall_events = self.fall_detector.update(active_ids)
+
+
+            # --- LOGIQUE LED ARDUINO ---
+            if self.arduino:
+                try:
+                    # Gestion Tracking (LED Verte/Standard)
+                    self.arduino.write(b'1' if tracks else b'0')
+                    
+                    # Gestion Chute (LED Rouge)
+                    # On allume si des événements de chute sont détectés dans cette frame
+                    if fall_events:
+                        self.arduino.write(b'F')
+                    else:
+                        # Optionnel : tu peux décider de laisser la LED allumée 
+                        # jusqu'à ce qu'un bouton soit pressé, ou l'éteindre si aucune chute n'est active
+                        self.arduino.write(b'N')
+                except:
+                    self.arduino = None
+                    print("❌ Connexion Arduino perdue.")
 
             # Calcul du Range Profile (Puissance vs Distance)
             # On prend la puissance max pour chaque rangée (distance)
