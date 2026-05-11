@@ -30,7 +30,7 @@ class GTrackModule2D:
         self.candidates: dict[int, dict] = {}
         self.candidate_counter = 0
         self.recycled_ids: list[int] = []  # IDs libérés à réutiliser
-        self.confirm_threshold = 10  # frames avant confirmation
+        self.confirm_threshold = 5  # frames avant confirmation
 
     def _build_matrices(self, cfg: GTrackConfig2D):
         """

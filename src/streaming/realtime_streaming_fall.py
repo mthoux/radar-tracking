@@ -215,6 +215,10 @@ class MyApp(ShowBase):
             # Run GTrack
             gtrack_output = self.tracker.step(detections)
 
+            # Update known positions
+            for t in gtrack_output['tracks']:
+                self.fall_detector.last_positions[t['uid']] = (t['pos'][0], t['pos'][1])
+
             # Fall detection
             active_ids = {t['uid'] for t in gtrack_output['tracks']}
             fall_events = self.fall_detector.update(active_ids)
