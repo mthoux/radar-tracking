@@ -1,14 +1,9 @@
 import numpy as np
 import queue
-import time
 
 from mmwave.dataloader.adc import DCA1000
-from gtrack.config import (GTrackConfig2D)
-from gtrack.module import GTrackModule2D
 from processing.processing import process_frame, beamform_2d_s
 from utils.utils import get_ant_pos_2d
-from processing.processing import compute_dbscan
-
 
 def producer_real_time_1843(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip):
     """
