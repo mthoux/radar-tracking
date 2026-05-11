@@ -22,6 +22,8 @@ loadPrcFileData('', 'window-type none')   # no native GL window
 from PyQt5 import QtWidgets
 
 from .prod_dca import producer_real_time_1843
+from .fall_detection import FallDetector
+
 from visualization.visualization import configure_ax_bf, configure_ax_db, configure_ax_gtrack, update_ax_gtrack
 from utils.utils import cart2pol
 from gtrack.config import Detection
@@ -88,6 +90,16 @@ class MyApp(ShowBase):
         self.cart2pol = cart2pol(self.X.ravel(), self.Y.ravel())
 
         self.tracker = GTrackModule2D(cfg_gtrack)
+        
+        # Instantiation of the fall detector
+        self.fall_detector = FallDetector(fall_threshold_frames=40)
+
+        # Historique de chutes
+        self.fall_log_text = self.ax_3.text(
+            1.02, 1.0, "Chutes :\n—",
+            transform=self.ax_3.transAxes,
+            fontsize=8, color='red', verticalalignment='top'
+        )
 
         self.last_artists = []
 
@@ -96,6 +108,24 @@ class MyApp(ShowBase):
         self.CLUTTER_LEARN = 50          # number of frames to accumulate (~2.5 s at 20 fps)
         self.clutter_frames = []         # rolling buffer of normalized frames
         self.clutter_map = None          # learned static background, set after CLUTTER_LEARN frames
+
+    def _on_fall_detected(self, event: dict):
+        """Appelé une fois par chute détectée."""
+        tid   = event["track_id"]
+        ts    = time.strftime("%H:%M:%S", time.localtime(event["timestamp"]))
+
+        # Affichage sur la figure
+        self.ax_3.set_title(
+            f"⚠ CHUTE détectée — track {tid} à {ts}",
+            color="red", fontweight="bold"
+        )
+
+        # Historique complet dans le coin
+        lines = [
+            f"{time.strftime('%H:%M:%S', time.localtime(e['timestamp']))} — track {e['track_id']}"
+            for e in self.fall_detector.fall_events
+        ]
+        self.fall_log_text.set_text("Chutes :\n" + "\n".join(lines))
 
 
     def updateTask(self, task):
@@ -118,7 +148,6 @@ class MyApp(ShowBase):
 
         except:
             pass
-
 
         # Check if we have received a new messages from both producers
         if self.msg_count == {0, 1}:
@@ -202,7 +231,7 @@ class MyApp(ShowBase):
             to_plot = np.clip(to_plot - self.clutter_map, 0, None)
 
             #======================================================================
-            
+
             to_plot = to_plot ** 8
 
             # Update the beamforming plot
@@ -219,6 +248,13 @@ class MyApp(ShowBase):
             # Run GTrack
             gtrack_output = self.tracker.step(detections)
 
+            # Fall detection
+            active_ids = {t['uid'] for t in gtrack_output['tracks']}
+            fall_events = self.fall_detector.update(active_ids)
+
+            for event in fall_events:
+                self._on_fall_detected(event)
+
             # Update the gtrack plot
             tracks = gtrack_output['tracks']
             update_ax_gtrack(self.ax_3, tracks, self.last_artists)
@@ -230,6 +266,8 @@ class MyApp(ShowBase):
                 self.fps = self.frame_counter / (current_time - self.last_fps_time)
                 self.last_fps_time = current_time
                 self.frame_counter = 0
+                # Update the threshold with fps mesured
+                self.fall_detector.fall_threshold = max(5, int(self.fps * 2.5))
 
             # Update FPS text on the polar plot
             self.fps_text.set_text(f"FPS: {self.fps:.2f}")

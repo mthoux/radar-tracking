@@ -25,6 +25,13 @@ class GTrackModule2D:
         self.pres_on_count = 0
         self.pres_off_count = 0
 
+        # Tracks candidates (pas encore confirmées)
+        # {uid_candidat: {'cluster': [...], 'count': int, 'unit': GTrackUnit2D}}
+        self.candidates: dict[int, dict] = {}
+        self.candidate_counter = 0
+        self.recycled_ids: list[int] = []  # IDs libérés à réutiliser
+        self.confirm_threshold = 0  # frames avant confirmation
+
     def _build_matrices(self, cfg: GTrackConfig2D):
         """
         Build the state transition and process noise matrices for the Kalman filter.
@@ -81,9 +88,13 @@ class GTrackModule2D:
             if u.status == 'FREE':
                 self._reclaim(u)
 
+        # Nettoyer les candidates non vues cette frame
+        self._expire_candidates(pts)
+
         self._presence()
 
         return {'tracks': [u.report() for u in self.active], 'presence': self.presence_flag}
+    
 
     def _associate(self, points):
         """
@@ -111,35 +122,22 @@ class GTrackModule2D:
                 pt.is_unique = False
 
     def _allocate(self, points):
-        """
-        Allocate new units to unassigned points using DBSCAN clustering.
-
-        Parameters
-        ----------
-        points : list of Detection
-            List of detected points, each with range, azimuth, and doppler attributes.
-        """
-
         cfg = self.config
-        # Select unassigned seeds
         seeds = [pt for pt in points if pt.assigned_id == -1]
         if not self.free or len(seeds) < cfg.min_cluster_points:
             return
 
-        # Build normalized feature array
         X = np.array([[pt.range / cfg.alloc_range_gate,
-                       pt.azimuth / cfg.alloc_az_gate,
-                       pt.doppler / cfg.alloc_vel_gate]
-                      for pt in seeds])
+                    pt.azimuth / cfg.alloc_az_gate,
+                    pt.doppler / cfg.alloc_vel_gate]
+                    for pt in seeds])
 
-        # Cluster using DBSCAN
         db = DBSCAN(eps=1.0,
                     min_samples=cfg.min_cluster_points,
                     metric='euclidean',
                     n_jobs=-1).fit(X)
         labels = db.labels_
 
-        # allocate each cluster above the SNR threshold
         for lab in set(labels):
             if lab == -1 or not self.free:
                 continue
@@ -148,12 +146,56 @@ class GTrackModule2D:
             if total_snr < cfg.alloc_snr_threshold:
                 continue
             cluster = [seeds[i] for i in idxs]
-            unit = self.free.pop(0)
-            unit.start(cluster)
-            self.active.append(unit)
-            for pt in cluster:
-                pt.assigned_id = unit.uid
-                pt.is_unique = True
+
+            # Chercher si ce cluster correspond à une candidate existante
+            matched_cid = self._match_candidate(cluster)
+
+            if matched_cid is not None:
+                # Incrémenter le compteur de la candidate
+                self.candidates[matched_cid]['count'] += 1
+                self.candidates[matched_cid]['cluster'] = cluster
+
+                # Confirmer si seuil atteint
+                if self.candidates[matched_cid]['count'] >= self.confirm_threshold:
+                    unit = self.free.pop(0)
+                    unit.start(cluster)
+                    self.active.append(unit)
+                    for pt in cluster:
+                        pt.assigned_id = unit.uid
+                        pt.is_unique = True
+                    del self.candidates[matched_cid]
+                    self.recycled_ids.append(matched_cid)
+            else:
+                # Nouvelle candidate
+                if self.recycled_ids:
+                    cid = self.recycled_ids.pop(0)
+                else:
+                    cid = self.candidate_counter
+                    self.candidate_counter += 1
+                self.candidates[cid] = {'cluster': cluster, 'count': 1}
+
+    def _match_candidate(self, cluster, dist_threshold=0.5):
+        """
+        Cherche si un cluster correspond à une candidate existante
+        basé sur la distance entre les centres.
+        """
+        if not self.candidates:
+            return None
+
+        # Centre du cluster entrant
+        new_cx = np.mean([pt.range * np.sin(pt.azimuth) for pt in cluster])
+        new_cy = np.mean([pt.range * np.cos(pt.azimuth) for pt in cluster])
+
+        best_cid, best_dist = None, dist_threshold
+        for cid, cand in self.candidates.items():
+            cx = np.mean([pt.range * np.sin(pt.azimuth) for pt in cand['cluster']])
+            cy = np.mean([pt.range * np.cos(pt.azimuth) for pt in cand['cluster']])
+            dist = np.hypot(new_cx - cx, new_cy - cy)
+            if dist < best_dist:
+                best_dist = dist
+                best_cid = cid
+
+        return best_cid
 
     def _reclaim(self, unit):
         """
@@ -168,6 +210,26 @@ class GTrackModule2D:
         self.active.remove(unit)
         unit.stop()
         self.free.append(unit)
+
+    def _expire_candidates(self, points):
+        """Supprime les candidates dont le cluster n'a pas été revu cette frame."""
+        # On reconstruit les centres des clusters actifs cette frame
+        seeds = [pt for pt in points if pt.assigned_id == -1]
+        to_delete = []
+        for cid, cand in self.candidates.items():
+            cx = np.mean([pt.range * np.sin(pt.azimuth) for pt in cand['cluster']])
+            cy = np.mean([pt.range * np.cos(pt.azimuth) for pt in cand['cluster']])
+            # Vérifier si un seed est proche
+            seen = any(
+                np.hypot(pt.range * np.sin(pt.azimuth) - cx,
+                        pt.range * np.cos(pt.azimuth) - cy) < 0.5
+                for pt in seeds
+            )
+            if not seen:
+                to_delete.append(cid)
+        for cid in to_delete:
+            del self.candidates[cid]
+            self.recycled_ids.append(cid)
 
     def _presence(self):
         """
