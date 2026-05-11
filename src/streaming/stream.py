@@ -67,11 +67,11 @@ def main():
         alloc_snr_threshold=1,  # sum-SNR threshold
         min_snr_threshold=0.01,  # min SNR for new track
         init_state_cov=1.0,  # starting P for new tracks
-        det_to_active_count=12,  # hits needed to go ACTIVE
+        det_to_active_count=1,  # hits needed to go ACTIVE
         det_to_free_count=3,  # misses to drop DETECTION
         act_to_free_count=8,  # misses to drop ACTIVE
         presence_zones=[],  # e.g. [PresenceZone2D(-10,10,-5,5)]
-        pres_on_count=5, # frames to confirm presence on
+        pres_on_count=3, # frames to confirm presence on
         pres_off_count=3 # frames to confirm presence off
     )
 
