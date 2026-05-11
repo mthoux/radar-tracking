@@ -1,6 +1,7 @@
 import sys
 import time
 import warnings
+import numpy as np
 from PyQt5 import QtWidgets
 from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
@@ -42,16 +43,32 @@ class Visualizer(ShowBase):
         self.r_idxs = cfg_radar["range_idx"]
 
         # Matplotlib figure initialization
-        gs = GridSpec(1, 2, width_ratios=[1, 1.5])
-        self.fig = plt.figure(figsize=(12, 8))
+        gs = GridSpec(2, 2, width_ratios=[1, 1.5], height_ratios=[1, 0.5])
+        self.fig = plt.figure(figsize=(12, 10))
         
-        # Polar axis for Beamforming Heatmap
-        self.ax = self.fig.add_subplot(gs[0], projection='polar')
+        # 1. Bird Eye View (Polar)
+        self.ax = self.fig.add_subplot(gs[0, 0], projection='polar')
         self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs)
 
-        # Cartesian axis for GTrack display
-        self.ax_3 = self.fig.add_subplot(gs[1])
+        # 2. GTrack (Cartesian)
+        self.ax_3 = self.fig.add_subplot(gs[:, 1])
         configure_ax_gtrack(self.ax_3, cfg_radar["width"], len(self.r_idxs))
+
+        # 3. 1D Plot (Power/Range Profile)
+        self.ax_1d = self.fig.add_subplot(gs[1, 0])
+        
+        # Récupération de la résolution et création de l'axe en mètres
+        res = cfg_radar.get("range_res", 1.0) # On récupère la valeur de la config
+        self.r_metres = self.r_idxs * res      # Conversion des indices en mètres
+        
+        # On trace avec self.r_metres au lieu de self.r_idxs
+        self.line_1d, = self.ax_1d.plot(self.r_metres, np.zeros_like(self.r_idxs), color='green')
+        
+        self.ax_1d.set_ylim(0, 1.1)
+        self.ax_1d.set_xlim(self.r_metres[0], self.r_metres[-1]) # Calage parfait de l'axe
+        self.ax_1d.set_title(f"Profil de Puissance (Res: {res*100:.1f}cm)")
+        self.ax_1d.set_xlabel("Distance réelle (m)")
+        self.ax_1d.grid(True, alpha=0.3)
 
         # Artists and UI elements
         self.last_artists = []
@@ -88,6 +105,10 @@ class Visualizer(ShowBase):
             # 1. Update Heatmap & Tracks
             self.im.set_array(data["heatmap"].ravel())
             update_ax_gtrack(self.ax_3, data["tracks"], self.last_artists)
+
+            # --- NOUVEAU : Update Graphique 1D ---
+            if "range_profile" in data:
+                self.line_1d.set_ydata(data["range_profile"])
 
             # 2. Update Title based on learning state
             if data["learning_left"] > 0:

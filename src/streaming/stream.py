@@ -39,7 +39,7 @@ def main():
         return idx * range_res_m * 100
 
     D = cm_to_idx(20)
-    angle = 30
+    angle = 0
 
     # Offsets for the radars
     offset_x_1 = +D  # x offset for the first radar
@@ -52,6 +52,7 @@ def main():
     # Radar  parameters
     cfg_radar = {
         "nb_radar" : 1,
+        "range_res": range_res_m,
         "range_idx": r_idxs,
         "phi": phi,
         "width": width,

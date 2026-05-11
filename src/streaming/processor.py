@@ -86,18 +86,19 @@ class Processor:
         most recent frame (avoids lag accumulation).
         """
         for i, q in enumerate([self.q1, self.q2]):
-            new_data = False
+
             try:
                 while not q.empty():
                     msg = q.get_nowait()
                     if msg[0] == 'bev':
                         self.latest_msg[i] = msg[1]
                         self.msg_ready[i] = True
-                        new_data = True
+
             except:
                 pass
         return any(self.msg_ready)
 
+    # Data processing is performed here
     def process(self, task: Task) -> int:
         """
         Main processing loop called by the task manager.
@@ -160,11 +161,18 @@ class Processor:
             active_ids = {t['uid'] for t in tracks}
             fall_events = self.fall_detector.update(active_ids)
 
+            # Calcul du Range Profile (Puissance vs Distance)
+            # On prend la puissance max pour chaque rangée (distance)
+            # Pour le truc de Romain
+            range_profile = np.max(to_plot, axis=0)
+
             # --- DATA OUTPUT ---
+            # Send this to the visualizer
             try:
                 if not self.q_out.full():
                     self.q_out.put_nowait({
                         "heatmap": to_plot,
+                        "range_profile": range_profile, # Nouvelle donnée
                         "tracks": tracks,
                         "fall_events": fall_events, # On envoie les nouveaux événements
                         "all_falls": self.fall_detector.fall_events, # Historique complet
