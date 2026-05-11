@@ -1,159 +1,163 @@
 import sys
 import warnings
-warnings.simplefilter("ignore", UserWarning)
-sys.coinit_flags = 2
-
-import time
 import numpy as np
-
 from scipy.interpolate import RegularGridInterpolator
 from direct.task import Task
+from typing import Dict, Any, List
 
+# Local imports
 from gtrack.config import Detection
 from gtrack.module import GTrackModule2D
 
-class Processor:
-    def __init__(self, queue_1, queue_2, queue_out, cfg_radar, cfg_gtrack):
+# Global configuration to avoid COM initialization issues on some systems
+warnings.simplefilter("ignore", UserWarning)
+sys.coinit_flags = 2
 
+class Processor:
+    """
+    Handles the fusion of multiple radar streams, background subtraction, 
+    and target tracking using GTrack.
+    """
+
+    def __init__(self, queue_1: Any, queue_2: Any, queue_out: Any, cfg_radar: Dict[str, Any], cfg_gtrack: Any):
+        """
+        Initializes the processor with radar geometry and tracking configurations.
+        """
         self.q1 = queue_1
         self.q2 = queue_2
-        self.q_out = queue_out  # File pour envoyer les résultats au visualiseur
+        self.q_out = queue_out
         
-        self.latest_msg = {}
-        self.msg_count = set()
+        # Latest data storage to sync asynchronous radar streams
+        self.latest_msg = {0: None, 1: None}
+        self.msg_ready = [False, False]
 
-        # Config Radar & GTrack
+        # Radar & Tracking Parameters
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
-        self.treshold = cfg_gtrack.min_snr_threshold
+        self.snr_threshold = cfg_gtrack.min_snr_threshold
         
-        # Offsets et angles
+        # Geometric Offsets
         self.x1, self.y1 = cfg_radar["offset_x_1"], cfg_radar["offset_y_1"]
         self.x2, self.y2 = cfg_radar["offset_x_2"], cfg_radar["offset_y_2"]
         self.angle_1, self.angle_2 = cfg_radar["angle_1"], cfg_radar["angle_2"]
 
-        # Grilles cartésiennes
-        self.x = np.arange(-cfg_radar["width"], cfg_radar["width"], 1)
-        self.y = self.r_idxs
-        self.X, self.Y = np.meshgrid(self.x, self.y, indexing='xy')
+        # Define Cartesian Grid for Fusion
+        self.x_grid = np.arange(-cfg_radar["width"], cfg_radar["width"], 1)
+        self.y_grid = self.r_idxs
+        self.X, self.Y = np.meshgrid(self.x_grid, self.y_grid, indexing='xy')
 
+        # GTrack Module Initialization
         self.tracker = GTrackModule2D(cfg_gtrack)
         
-        # Background removal 
-        self.CLUTTER_LEARN = 50
-        self.clutter_frames = []
-        self.clutter_map = None
+        # Background / Clutter Removal State
+        self.CLUTTER_LEARN_LIMIT = 50
+        self.clutter_frames: List[np.ndarray] = []
+        self.clutter_map: np.ndarray = None
 
+        # PRE-COMPUTATION: Mapping Polar coordinates to Cartesian points once.
+        # This prevents costly trigonometric calculations inside the processing loop.
+        
+        # Radar 1 Mapping
+        phi1 = np.arctan2((self.Y - self.y1).ravel(), (self.X - self.x1).ravel()) - self.angle_1
+        r1 = np.hypot(self.X.ravel() - self.x1, self.Y.ravel() - self.y1)
+        self.pts1 = np.column_stack((phi1, r1))
 
-    def process(self, task):
+        # Radar 2 Mapping
+        phi2 = np.arctan2((self.Y - self.y2).ravel(), (self.X - self.x2).ravel()) - self.angle_2
+        r2 = np.hypot(self.X.ravel() - self.x2, self.Y.ravel() - self.y2)
+        self.pts2 = np.column_stack((phi2, r2))
+
+        # Back-sampling Mapping (Cartesian -> Polar display)
+        PHI_MESH, R_MESH = np.meshgrid(self.phi, self.r_idxs, indexing='ij')
+        self.pts_back = np.column_stack((
+            (R_MESH * np.sin(PHI_MESH)).ravel(), # y-coord on cartesian grid
+            (R_MESH * np.cos(PHI_MESH)).ravel()  # x-coord on cartesian grid
+        ))
+        self.POLAR_SHAPE = PHI_MESH.shape
+
+    def _get_latest_from_queues(self):
         """
-        Update task that processes the radar data from the queues, performs beamforming,
-
-        Parameters
-        ----------
-        task : Task (unused)
-            The task object provided by Panda3D's task manager.
+        Drains all messages from input queues to ensure we only process the 
+        most recent frame (avoids lag accumulation).
         """
-    
-        # 1. Récupération des données
-        try:
-            for pid, q in enumerate((self.q1, self.q2)):
+        for i, q in enumerate([self.q1, self.q2]):
+            new_data = False
+            try:
                 while not q.empty():
                     msg = q.get_nowait()
                     if msg[0] == 'bev':
-                        self.latest_msg[pid] = msg[1]
-                        self.msg_count.add(pid)
-        except: pass
+                        self.latest_msg[i] = msg[1]
+                        self.msg_ready[i] = True
+                        new_data = True
+            except:
+                pass
+        return any(self.msg_ready)
 
-        # 2. Traitement si on a les deux radars
-        if self.msg_count == {0, 1}:
-            # --- Logique de fusion / interpolation ---
+    def process(self, task: Task) -> int:
+        """
+        Main processing loop called by the task manager.
+        Performs fusion, clutter removal, and tracking.
+        """
+        # 1. Update data from queues
+        has_new_data = self._get_latest_from_queues()
 
-            # Unpack the latest message
-            bf_1 = self.latest_msg[0]
-            bf_2 = self.latest_msg[1]
-
-            phi1 = np.arctan2((self.Y - self.y1).ravel(), (self.X - self.x1).ravel()) - self.angle_1
-            r1   = np.hypot(self.X.ravel() - self.x1, self.Y.ravel() - self.y1)
-            cart2pol1 = np.column_stack((phi1, r1))
-
-            phi2 = np.arctan2((self.Y - self.y2).ravel(), (self.X - self.x2).ravel()) - self.angle_2
-            r2   = np.hypot(self.X.ravel() - self.x2, self.Y.ravel() - self.y2)
-            cart2pol2 = np.column_stack((phi2, r2))
-
-            # Cartesian interpolators
-            interp1 = RegularGridInterpolator(
-                (self.phi, self.r_idxs),  # φ axis, r axis
-                bf_1,
-                method='linear', bounds_error=False, fill_value=0
-            )
-            interp2 = RegularGridInterpolator(
-                (self.phi, self.r_idxs),
-                bf_2,
-                method='linear', bounds_error=False, fill_value=0
-            )
-
-            # sample at every global (x,y) for each radar
-            Z1 = interp1(cart2pol1).reshape(self.X.shape)
-            Z2 = interp2(cart2pol2).reshape(self.X.shape)
-
-            # Fuse
-            #Z_cart = (Z1 * Z2)
-            Z_cart = np.maximum(Z1, Z2)
-            #overlap = (Z1 > 0) & (Z2 > 0)
-            #Z_cart = np.where(overlap, (Z1 + Z2) / 2, np.maximum(Z1, Z2))
-
-            # Build a Cartesian->grid interpolator once for the fused map
-            interp_cart2pol = RegularGridInterpolator(
-                (self.y, self.x),  # note order (row=y, col=x)
-                Z_cart,
-                method='linear',
-                bounds_error=False,
-                fill_value=0
-            )
-
-            # Sample back on your original polar mesh
-            PHI, R = np.meshgrid(self.phi, self.r_idxs, indexing='ij')
-            pts_back = np.column_stack((
-                (R * np.sin(PHI)).ravel(),  # y
-                (R * np.cos(PHI)).ravel()  # x
-            ))
-            Z_polar = interp_cart2pol(pts_back).reshape(PHI.shape)
-
-            # Flip the polar map to match the expected orientation
-            Z_polar = np.flip(Z_polar, axis=0)
+        # 2. Process only if we have a frame from both radars
+        if has_new_data and all(self.msg_ready):
+            bf_1, bf_2 = self.latest_msg[0], self.latest_msg[1]
             
-            to_plot = np.abs(Z_polar)
-            max_val = np.max(to_plot)
-            if max_val > 0: to_plot /= max_val
+            # --- FUSION ENGINE ---
+            # Instantiate interpolators (Note: Moving to map_coordinates would be even faster)
+            interp1 = RegularGridInterpolator((self.phi, self.r_idxs), bf_1, bounds_error=False, fill_value=0)
+            interp2 = RegularGridInterpolator((self.phi, self.r_idxs), bf_2, bounds_error=False, fill_value=0)
 
-            # --- Background / Clutter ---
-            is_learning = len(self.clutter_frames) < self.CLUTTER_LEARN
-            if is_learning:
+            # Map both radars to the same Cartesian space and fuse using Maximum Intensity Projection
+            Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
+
+            # Re-sample to Polar space for visualization
+            interp_fused = RegularGridInterpolator((self.y_grid, self.x_grid), Z_cart, bounds_error=False, fill_value=0)
+            Z_polar = np.flip(interp_fused(self.pts_back).reshape(self.POLAR_SHAPE), axis=0)
+
+            # Normalize 
+            to_plot = np.abs(Z_polar)
+            norm_factor = np.max(to_plot)
+            if norm_factor > 0:
+                to_plot /= norm_factor
+
+            # --- BACKGROUND SUBTRACTION ---
+            if len(self.clutter_frames) < self.CLUTTER_LEARN_LIMIT:
                 self.clutter_frames.append(to_plot.copy())
                 self.clutter_map = np.mean(self.clutter_frames, axis=0)
             else:
                 to_plot = np.clip(to_plot - self.clutter_map, 0, None)
 
+            # Sharpen the heatmap for point detection
             to_plot = to_plot ** 8
 
-            # --- GTrack ---
+            # --- GTRACKING ---
+            # Only generate detections for points above the SNR threshold
+            indices = np.argwhere(to_plot >= self.snr_threshold)
+            
+            # Optimization: limit detections to avoid saturating the tracker
             detections = [
                 Detection(r=self.r_idxs[i], az=self.phi[j], v=0, snr=to_plot[j, i])
-                for i in range(len(self.r_idxs))
-                for j in range(len(self.phi))
-                if to_plot[j, i] >= self.treshold
+                for j, i in indices[:200] # Caps at 200 points
             ]
+            
             gtrack_output = self.tracker.step(detections)
 
-            # 3. ENVOI DES RÉSULTATS
-            # On envoie un dictionnaire propre à la queue de sortie
-            self.q_out.put({
-                "heatmap": to_plot,
-                "tracks": gtrack_output['tracks'],
-                "learning_left": self.CLUTTER_LEARN - len(self.clutter_frames) if is_learning else 0
-            })
+            # --- DATA OUTPUT ---
+            # Send results to the visualizer queue without blocking
+            try:
+                if not self.q_out.full():
+                    self.q_out.put_nowait({
+                        "heatmap": to_plot,
+                        "tracks": gtrack_output.get('tracks', []),
+                        "learning_left": max(0, self.CLUTTER_LEARN_LIMIT - len(self.clutter_frames))
+                    })
+            except:
+                pass # Queue full, skip frame to maintain real-time
             
-            self.msg_count.clear()
+            # Reset readiness for next sync point
+            self.msg_ready = [False, False]
 
         return task.cont
