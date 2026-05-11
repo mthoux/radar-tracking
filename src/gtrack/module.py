@@ -29,7 +29,7 @@ class GTrackModule2D:
         # {uid_candidat: {'cluster': [...], 'count': int, 'unit': GTrackUnit2D}}
         self.candidates: dict[int, dict] = {}
         self.candidate_counter = 0
-        self.recycled_ids: list[int] = []  # IDs libérés à réutiliser
+        #self.recycled_ids: list[int] = []  # IDs libérés à réutiliser
         self.confirm_threshold = 5  # frames avant confirmation
 
     def _build_matrices(self, cfg: GTrackConfig2D):
@@ -164,15 +164,17 @@ class GTrackModule2D:
                         pt.assigned_id = unit.uid
                         pt.is_unique = True
                     del self.candidates[matched_cid]
-                    self.recycled_ids.append(matched_cid)
+                    # self.recycled_ids.append(matched_cid)
             else:
                 # Nouvelle candidate
-                if self.recycled_ids:
+                """ if self.recycled_ids:
                     minimum = self.recycled_ids.index(min(self.recycled_ids))
                     cid = self.recycled_ids.pop(minimum)
                 else:
                     cid = self.candidate_counter
-                    self.candidate_counter += 1
+                    self.candidate_counter += 1 """
+                cid = self.candidate_counter
+                self.candidate_counter += 1
                 self.candidates[cid] = {'cluster': cluster, 'count': 1}
 
     def _match_candidate(self, cluster, dist_threshold=0.5):
@@ -230,7 +232,7 @@ class GTrackModule2D:
                 to_delete.append(cid)
         for cid in to_delete:
             del self.candidates[cid]
-            self.recycled_ids.append(cid)
+            # self.recycled_ids.append(cid)
 
     def _presence(self):
         """
