@@ -103,6 +103,12 @@ class MyApp(ShowBase):
 
         self.last_artists = []
 
+        #==================================
+        # Background removal 
+        self.CLUTTER_LEARN = 50          # number of frames to accumulate (~2.5 s at 20 fps)
+        self.clutter_frames = []         # rolling buffer of normalized frames
+        self.clutter_map = None          # learned static background, set after CLUTTER_LEARN frames
+
     def _on_fall_detected(self, event: dict):
         """Appelé une fois par chute détectée."""
         tid   = event["track_id"]
@@ -198,8 +204,34 @@ class MyApp(ShowBase):
 
             # Normalize the output
             to_plot = np.abs(Z_polar)
-            to_plot /= np.max(to_plot)
+            max_val = np.max(to_plot)
+            if max_val > 0:
+                to_plot /= max_val
             to_plot = to_plot ** 8
+
+            #======================================================================
+
+            # --- Background learning phase (first CLUTTER_LEARN frames) ---
+            if len(self.clutter_frames) < self.CLUTTER_LEARN:
+                self.clutter_frames.append(to_plot.copy())
+                self.clutter_map = np.mean(self.clutter_frames, axis=0)
+                remaining = self.CLUTTER_LEARN - len(self.clutter_frames)
+                self.ax.set_title(f"Learning background... ({remaining} frames left)")
+ 
+                # Show raw (squared for contrast) during learning so display is not blank
+                self.im.set_array((to_plot ** 8).ravel())
+                self.fig.canvas.draw_idle()
+                QtWidgets.QApplication.processEvents()
+                self.msg_count.clear()
+                plt.pause(0.001)
+                return Task.cont  # skip gtrack until background is learned
+ 
+            # --- Background subtraction ---
+            # Subtract the learned static clutter map; clip negatives to 0
+            # so only dynamic (moving/changed) parts remain
+            to_plot = np.clip(to_plot - self.clutter_map, 0, None)
+
+            #======================================================================
 
             # Update the beamforming plot
             self.im.set_array(to_plot.ravel())
