@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 from scipy.interpolate import RegularGridInterpolator
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Event
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 
@@ -26,9 +26,10 @@ from visualization.visualization import configure_ax_bf, configure_ax_db, config
 from utils.utils import cart2pol
 from gtrack.config import Detection
 from gtrack.module import GTrackModule2D
+from matplotlib.gridspec import GridSpec
 
 
-def consumer(q1, q2, cfg_radar, cfg_gtrack):
+def consumer(q1, q2, cfg_radar, cfg_gtrack, stop_event):
     """
     Consumer function that processes data from two queues, performs beamforming,
 
@@ -43,7 +44,7 @@ def consumer(q1, q2, cfg_radar, cfg_gtrack):
     cfg_gtrack : dict
         Configuration dictionary for the GTrack module, including parameters like minimum SNR threshold.
     """
-    app = MyApp(q1, q2, cfg_radar, cfg_gtrack)
+    app = MyApp(q1, q2, cfg_radar, cfg_gtrack, stop_event)
     app.run()
 
 
@@ -51,7 +52,7 @@ class MyApp(ShowBase):
     """
     MyApp class that extends ShowBase to create a Panda3D application for real-time radar data visualization.
     """
-    def __init__(self, queue_1, queue_2, cfg_radar, cfg_gtrack):
+    def __init__(self, queue_1, queue_2, cfg_radar, cfg_gtrack, stop_event):
         ShowBase.__init__(self)
         self.q1 = queue_1
         self.q2 = queue_2
@@ -62,12 +63,17 @@ class MyApp(ShowBase):
         self.r_idxs = cfg_radar["range_idx"]
         self.treshold = cfg_gtrack.min_snr_threshold
 
-        self.fig = plt.figure(figsize=(6, 6))
-        self.ax = self.fig.add_subplot(111, projection='polar')
+        # On crée une grille de 1 ligne et 2 colonnes avec des largeurs différentes
+        gs = GridSpec(1, 2, width_ratios=[1, 1.5])
+
+        self.stop_event = stop_event
+
+        #self.fig = plt.figure(figsize=(6, 6))
+        self.fig = plt.figure(figsize=(12, 8))
+        self.ax = self.fig.add_subplot(gs[0], projection='polar')
         self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs)
 
-        self.fig_3 = plt.figure(figsize=(8, 6), constrained_layout=True)
-        self.ax_3 = self.fig_3.add_subplot(111)
+        self.ax_3 = self.fig.add_subplot(gs[1])
         configure_ax_gtrack(self.ax_3, cfg_radar["width"], len(self.r_idxs))
 
         self.last_frame_time = time.time()
@@ -80,6 +86,8 @@ class MyApp(ShowBase):
 
         self.x1, self.y1 = cfg_radar["offset_x_1"], cfg_radar["offset_y_1"]
         self.x2, self.y2 = cfg_radar["offset_x_2"], cfg_radar["offset_y_2"]
+        self.angle_1 = cfg_radar["angle_1"]
+        self.angle_2 = cfg_radar["angle_2"]
 
         self.x = np.arange(-cfg_radar["width"], cfg_radar["width"], 1)
         self.y = self.r_idxs
@@ -91,6 +99,20 @@ class MyApp(ShowBase):
 
         self.last_artists = []
 
+        #background removal 
+        self.CLUTTER_LEARN = 50          # number of frames to accumulate (~2.5 s at 20 fps)
+        self.clutter_frames = []         # rolling buffer of normalized frames
+        self.clutter_map = None          # learned static background, set after CLUTTER_LEARN frames
+
+        # Fenêtre en haut à gauche
+        #self.fig.canvas.manager.window.move(0, 0)
+
+        self.fig.canvas.mpl_connect('close_event', self.on_close)
+
+    def on_close(self, event):
+        print("Fermeture de la fenêtre détectée. Arrêt global...")
+        self.stop_event.set() # Signale au processus Main de s'arrêter
+        sys.exit(0)
 
     def updateTask(self, task):
         """
@@ -120,12 +142,12 @@ class MyApp(ShowBase):
             bf_1 = self.latest_msg[0]
             bf_2 = self.latest_msg[1]
 
-            phi1 = np.arctan2((self.Y - self.y1).ravel(), (self.X - self.x1).ravel())
-            r1 = np.hypot(self.X.ravel() - self.x1, self.Y.ravel() - self.y1)
+            phi1 = np.arctan2((self.Y - self.y1).ravel(), (self.X - self.x1).ravel()) - self.angle_1
+            r1   = np.hypot(self.X.ravel() - self.x1, self.Y.ravel() - self.y1)
             cart2pol1 = np.column_stack((phi1, r1))
 
-            phi2 = np.arctan2((self.Y - self.y2).ravel(), (self.X - self.x2).ravel())
-            r2 = np.hypot(self.X.ravel() - self.x2, self.Y.ravel() - self.y2)
+            phi2 = np.arctan2((self.Y - self.y2).ravel(), (self.X - self.x2).ravel()) - self.angle_2
+            r2   = np.hypot(self.X.ravel() - self.x2, self.Y.ravel() - self.y2)
             cart2pol2 = np.column_stack((phi2, r2))
 
             # Cartesian interpolators
@@ -145,7 +167,10 @@ class MyApp(ShowBase):
             Z2 = interp2(cart2pol2).reshape(self.X.shape)
 
             # Fuse
-            Z_cart = (Z1 * Z2)
+            #Z_cart = (Z1 * Z2)
+            Z_cart = np.maximum(Z1, Z2)
+            #overlap = (Z1 > 0) & (Z2 > 0)
+            #Z_cart = np.where(overlap, (Z1 + Z2) / 2, np.maximum(Z1, Z2))
 
             # Build a Cartesian->grid interpolator once for the fused map
             interp_cart2pol = RegularGridInterpolator(
@@ -169,7 +194,34 @@ class MyApp(ShowBase):
 
             # Normalize the output
             to_plot = np.abs(Z_polar)
-            to_plot /= np.max(to_plot)
+            max_val = np.max(to_plot)
+            if max_val > 0:
+                to_plot /= max_val
+
+            #======================================================================
+
+            # --- Background learning phase (first CLUTTER_LEARN frames) ---
+            if len(self.clutter_frames) < self.CLUTTER_LEARN:
+                self.clutter_frames.append(to_plot.copy())
+                self.clutter_map = np.mean(self.clutter_frames, axis=0)
+                remaining = self.CLUTTER_LEARN - len(self.clutter_frames)
+                self.ax.set_title(f"Learning background... ({remaining} frames left)")
+ 
+                # Show raw (squared for contrast) during learning so display is not blank
+                self.im.set_array((to_plot ** 8).ravel())
+                self.fig.canvas.draw_idle()
+                QtWidgets.QApplication.processEvents()
+                self.msg_count.clear()
+                plt.pause(0.001)
+                return Task.cont  # skip gtrack until background is learned
+ 
+            # --- Background subtraction ---
+            # Subtract the learned static clutter map; clip negatives to 0
+            # so only dynamic (moving/changed) parts remain
+            to_plot = np.clip(to_plot - self.clutter_map, 0, None)
+
+            #======================================================================
+
             to_plot = to_plot ** 8
 
             # Update the beamforming plot
@@ -203,7 +255,6 @@ class MyApp(ShowBase):
 
             # Update the figure
             self.fig.canvas.draw_idle()
-            self.fig_3.canvas.draw_idle()
 
             # Redraw the canvas
             QtWidgets.QApplication.processEvents()
@@ -233,13 +284,14 @@ def main(cfg_radar, cfg_gtrack, cfg_cfar):
     # Set up the queues
     q_main_1 = Queue(maxsize=1)  # ❗️ Only keep latest
     q_main_2 = Queue(maxsize=1)
+    stop_event = Event()
 
     # Create producer and consumer processes
     producers = [
         Process(target=producer_real_time_1843,args=(q_main_1, cfg_radar, cfg_cfar, 4096, 4098, "192.168.33.30", "192.168.33.180"), daemon=True),
         Process(target=producer_real_time_1843, args=(q_main_2, cfg_radar, cfg_cfar, 4099, 5000, "192.168.33.32", "192.168.33.182"), daemon=True)
         ]
-    consumers = [Process(target=consumer, args=(q_main_1, q_main_2, cfg_radar, cfg_gtrack), daemon=True)]
+    consumers = [Process(target=consumer, args=(q_main_1, q_main_2, cfg_radar, cfg_gtrack, stop_event), daemon=True)]
 
     # Start the producer and consumer processes
     for p in producers: p.start()
@@ -248,12 +300,15 @@ def main(cfg_radar, cfg_gtrack, cfg_cfar):
     print("✅ Streaming started.")
 
     try:
-        while True:
-            time.sleep(1)
+        # AU LIEU DE while True:
+        while not stop_event.is_set():
+            time.sleep(0.1) # Attend que la fenêtre soit fermée
     except KeyboardInterrupt:
-        for p in producers: p.terminate()
-        for c in consumers: c.terminate()
-        for p in producers: p.join()
-        for c in consumers: c.join()
+        print("Interruption par clavier.")
+    finally:
+        # On nettoie tout
+        for p in producers + consumers: 
+            p.terminate()
+            p.join()
         print("✅ Shutdown complete.")
 

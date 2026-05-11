@@ -11,16 +11,45 @@ def main():
     Main function to start the real-time radar streaming and processing.
     """
 
+    # Range resolution
+    c = 3e8
+    f = 77e9
+    slope = 70.150e6
+    sample_rate = 5166000
+    num_range = 992
+    range_res_m = c / (2 * slope / sample_rate * num_range)  # ≈ 0.044 m
+
     # Parameters for the range-azimuth beamforming
     r_idxs = np.arange(0, 100, 1)
     phi = np.deg2rad(np.arange(0, 180, 1))
-    width = 40 # azimuth width in degrees
+    width = 100 # azimuth width in degrees
+
+    # Range resolution : 1 indice = c * sample_rate / (2 * slope * num_range)
+    # Avec c=3e8, sample_rate=5166000, slope=70.15e6, num_range=992 :
+    #   range_res ≈ 0.044 m = 4.4 cm  →  1 indice ≈ 4.4 cm
+    #
+    # Conversion :
+    #   indices → cm  :  idx * 4.4
+    #   cm → indices  :  cm / 4.4
+    #
+    # Exemple : radars espacés de 30 cm  →  D = 30 / 4.4 ≈ 7 indices
+
+    def cm_to_idx(cm):
+        return int(cm / (range_res_m * 100))
+
+    def idx_to_cm(idx):
+        return idx * range_res_m * 100
+
+    D = cm_to_idx(20)
+    angle = 30
 
     # Offsets for the radars
-    offset_x_1 = 0.0  # x offset for the first radar
-    offset_x_2 = 0.0  # x offset for the second radar
+    offset_x_1 = +D  # x offset for the first radar
+    offset_x_2 = -D  # x offset for the second radar
     offset_y_1 = 0.0  # y offset for the first radar
     offset_y_2 = 0.0  # y offset for the second radar
+    angle_1 = np.deg2rad(angle)
+    angle_2 = np.deg2rad(angle)
 
     # Radar  parameters
     cfg_radar = {
@@ -32,15 +61,17 @@ def main():
         "offset_x_2": offset_x_2,
         "offset_y_1": offset_y_1,
         "offset_y_2": offset_y_2,
+        "angle_1": angle_1,
+        "angle_2": angle_2,
         "n_radar": 2,
         "num_tx": 3,
         "num_rx": 4,
         "num_doppler": 16,
-        "num_range": 992,
-        "sample_rate": 5166000,
-        "c": 3e8,
-        "lm": 3e8 / 77e9,
-        "slope": 70.150e6
+        "num_range": num_range,
+        "sample_rate": sample_rate,
+        "c": c,
+        "lm": c / f,
+        "slope": slope
     }
 
     # Parameters for CFAR
@@ -79,7 +110,6 @@ def main():
     print("⌛️ Starting streaming...")
 
     # Start the streaming process
-    #realtime_streaming_refactored.main(cfg_radar, cfg_gtrack, cfg_cfar)
     realtime_streaming.main(cfg_radar, cfg_gtrack, cfg_cfar)
 
 if __name__ == "__main__":
