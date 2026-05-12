@@ -85,7 +85,7 @@ class Processor:
         self.arduino = None
         try:
             # Remplace 'COM3' par ton port (ex: '/dev/ttyACM0' sur Linux)
-            self.arduino = serial.Serial('/dev/tty.usbmodem11201', 9600, timeout=0.1)
+            self.arduino = serial.Serial('/dev/tty.usbmodem1401', 9600, timeout=0.1)
             print("✅ Arduino détecté et connecté.")
         except Exception as e:
             print(f"⚠️ Arduino non détecté : {e}. Mode sans LED activé.")

@@ -63,7 +63,7 @@ else
     enX=$(ifconfig -u | grep -E "$INTERFACE_PATTERN" | cut -d: -f1 | head -n 1)
     if [ -z "$enX" ]; then echo "Error: No interface."; exit 1; fi
     sudo ifconfig "$enX" inet "$RADAR_1_IP" netmask "$NETMASK" up
-    python -m streaming.start_radar_1
+    python -m radar_commands.start_radar_1
     iface_1=$enX
     
     if ! check_radar_live "$RADAR_2_IP"; then
@@ -81,7 +81,7 @@ else
     if [ -z "$enY" ]; then echo "Error: No interface."; exit 1; fi
     sudo route delete -net "$SUBNET" > /dev/null 2>&1 || true
     sudo ifconfig "$enY" inet "$RADAR_2_IP" netmask "$NETMASK" up
-    python -m streaming.start_radar_2
+    python -m radar_commands.start_radar_2
 fi
 
 # 5. Final
