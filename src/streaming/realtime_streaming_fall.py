@@ -64,12 +64,15 @@ class MyApp(ShowBase):
         self.r_idxs = cfg_radar["range_idx"]
         self.treshold = cfg_gtrack.min_snr_threshold
 
-        self.fig = plt.figure(figsize=(6, 6))
-        self.ax = self.fig.add_subplot(111, projection='polar')
+        self.fig = plt.figure(figsize=(12, 6))
+
+        # Utilisation de GridSpec ou add_subplot pour diviser la fenêtre
+        # 121 signifie : 1 ligne, 2 colonnes, position 1
+        self.ax = self.fig.add_subplot(121, projection='polar')
         self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs)
 
-        self.fig_3 = plt.figure(figsize=(8, 6), constrained_layout=True)
-        self.ax_3 = self.fig_3.add_subplot(111)
+        # 122 signifie : 1 ligne, 2 colonnes, position 2
+        self.ax_3 = self.fig.add_subplot(122)
         configure_ax_gtrack(self.ax_3, cfg_radar["width"], len(self.r_idxs))
 
         self.last_frame_time = time.time()
@@ -277,7 +280,7 @@ class MyApp(ShowBase):
 
             # Update the figure
             self.fig.canvas.draw_idle()
-            self.fig_3.canvas.draw_idle()
+            #self.fig_3.canvas.draw_idle()
 
             # Redraw the canvas
             QtWidgets.QApplication.processEvents()
