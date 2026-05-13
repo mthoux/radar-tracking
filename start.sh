@@ -4,7 +4,7 @@ set -e
 
 # --- CONFIGURATION ---
 INTERFACE_PATTERN="en6|en7"
-PROJECT_DIR="/Users/Shared/radar-tracking/src"
+PROJECT_DIR="/Users/mathys/Desktop/radar-tracking/src"
 CONDA_ENV="radar"
 RADAR_1_IP="192.168.33.30"
 RADAR_2_IP="192.168.33.32"

@@ -1,72 +1,123 @@
-import sys
 import argparse
 import numpy as np
-from . import init
 from gtrack.config import GTrackConfig2D
 
-def main():
-    """
-    Initialize radar parameters and start real-time processing.
-    """
+import sys
+import time
+import warnings
+from multiprocessing import Process, Queue, Event
 
-    # Gestion des arguments
+from .producer import producer_real_time_1843
+from .visualizer import Visualizer
+from .processor import Processor
+
+# Suppress COM/User warnings before they trigger
+warnings.simplefilter("ignore", UserWarning)
+sys.coinit_flags = 2  # Multithreading concurrency mode for COM
+
+def consumer(q_radar1, q_radar2, cfg_radar, cfg_gtrack, stop_event):
+    q_results = Queue(maxsize=1)
+
+    processor = Processor(q_radar1, q_radar2, q_results, cfg_radar, cfg_gtrack)
+    visualizer = Visualizer(q_results, cfg_radar, stop_event)
+    
+    visualizer.taskMgr.add(processor.process, "RadarProcessingTask")
+    visualizer.run()
+
+def launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network) -> None:
+   
+    q_main_1 = Queue(maxsize=1)
+    q_main_2 = Queue(maxsize=1)
+    stop_event = Event()
+
+    data_producers = [
+        Process(
+            name="Producer_Radar_1",
+            target=producer_real_time_1843,
+            args=(q_main_1, cfg_radar, cfg_cfar, cfg_network["radar_1"]["ports"][0], cfg_network["radar_1"]["ports"][1], cfg_network["radar_1"]["ip_dev"], cfg_network["radar_1"]["ip_host"]),
+            daemon=True
+        ),
+        Process(
+            name="Producer_Radar_2",
+            target=producer_real_time_1843, 
+            args=(q_main_2, cfg_radar, cfg_cfar, cfg_network["radar_2"]["ports"][0], cfg_network["radar_2"]["ports"][1], cfg_network["radar_2"]["ip_dev"], cfg_network["radar_2"]["ip_host"]), 
+            daemon=True
+        )
+    ]
+    data_consumer = Process(
+        name="Consumer",
+        target=consumer, 
+        args=(q_main_1, q_main_2, cfg_radar, cfg_gtrack, stop_event), 
+        daemon=True
+    )
+
+    processes = data_producers + [data_consumer]
+
+    print("⌛ Initializing system...")
+    for p in processes:
+        p.start()
+
+    print("✅ System active. Press Ctrl+C or close the window to exit.")
+
+    try:
+        while not stop_event.is_set():
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        print("\n🛑  User interruption detected.")
+    finally:
+        print("🛑 Shutting down processes...")
+        stop_event.set() # Ensure everyone knows we are stopping
+        
+        for p in processes:
+            if p.is_alive():
+                p.terminate()
+                p.join(timeout=1.0)
+        
+        print("✅ Shutdown complete.")
+
+def main():
+
+    # Arguments
     parser = argparse.ArgumentParser(description="Radar Stream Processing")
     parser.add_argument('-nobgrm', action='store_false', dest='bg_removal', 
                         help="Désactive la suppression du fond (Background Removal)")
     args = parser.parse_args()
 
-    # Physical constants and radar specifications
-    c = 3e8
-    f = 77e9
-    #slope = 70.150e6
-    slope = 70.150e12
-    sample_rate = 5166000
-    num_range = 992
-    #num_range = 256
-    
-    # Resolution: ~0.044 m per index
-    bandwith = slope * (num_range / sample_rate)
-    #range_res_m = c / (2*bandwith)
-    range_res_m = 0.044
-
-    # Beamforming and spatial parameters
-    r_idxs = np.arange(0, 100, 1)
-    phi = np.deg2rad(np.arange(0, 180, 1))
-    width = 100 
-
-    def cm_to_idx(cm):
-        return int(cm / (range_res_m * 100))
-
-    def idx_to_cm(idx):
-        return idx * range_res_m * 100
-
-    # Radar geometry configuration (20cm spacing)
-    D = cm_to_idx(10)
-    angle = 0
-    angle_rad = np.deg2rad(angle)
-
     cfg_radar = {
         "nb_radar" : 1,
-        "range_res": range_res_m,
-        "range_idx": r_idxs,
-        "phi": phi,
-        "width": width,
-        "offset_x_1": +D,
-        "offset_x_2": -D,
+        "range_res": 0.044,
+        "range_idx": np.arange(0, 100, 1),
+        "phi": np.deg2rad(np.arange(0, 180, 1)),
+        "width": 100,
+        "offset_x_1": +int(10 / (0.044 * 100)), #cm to idx : int(cm / (range_res_m * 100))
+        "offset_x_2": -int(10 / (0.044 * 100)),
         "offset_y_1": 0.0,
         "offset_y_2": 0.0,
-        "angle_1": angle_rad,
-        "angle_2": angle_rad,
+        "angle_1": np.deg2rad(0),
+        "angle_2": np.deg2rad(0),
         "n_radar": 2,
         "num_tx": 3,
         "num_rx": 4,
         "num_doppler": 16,
-        "num_range": num_range,
-        "sample_rate": sample_rate,
-        "c": c,
-        "lm": c / f,
-        "slope": slope,
+        "num_range": 992,
+        "sample_rate": 5166000,
+        "c": 3e8,
+        "lm": 3e8 / 77e9, # c / f
+        "slope": 70.150e12,
         "do_bg_removal": args.bg_removal
+    }
+
+    cfg_network = {
+        "radar_1": {
+            "ip_dev": "192.168.33.30",
+            "ip_host": "192.168.33.180",
+            "ports": [4096, 4098]
+        },
+        "radar_2": {
+            "ip_dev": "192.168.33.32",
+            "ip_host": "192.168.33.182",
+            "ports": [4099, 5000]
+        }
     }
 
     # CFAR (Constant False Alarm Rate) detection parameters
@@ -103,7 +154,7 @@ def main():
     )
 
     print("⌛️ Starting streaming...")
-    init.main(cfg_radar, cfg_gtrack, cfg_cfar)
+    launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network)
 
 if __name__ == "__main__":
     main()
