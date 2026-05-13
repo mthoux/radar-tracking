@@ -30,7 +30,8 @@ def main():
     cfg_radar = {
         "wall": args.wall,
         "wall_params": {
-        "L_wall_squared": 4,   # adjust for your wall material
+        "wall_range_bin" : 50, # adjust based on your expected wall distance can be computed during BG removal, e.g. by looking at the range profile and finding the bin with the strongest static reflection 
+        "L_wall_squared": 2,   # adjust for your wall material, 2 to 1,5 seems to be the range for plywood, concrete, etc.
         "sigma": 0.75
         },
         "nb_radar" : 1,
