@@ -93,6 +93,10 @@ class Processor:
         except Exception as e:
             print(f"⚠️ Arduino non détecté : {e}. Mode sans LED activé.")
 
+        # Dans le __init__
+        self.smooth_heatmap = None
+        self.alpha = 0.5  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux)
+
     def _get_latest_from_queues(self):
         """
         Drains all messages from input queues to ensure we only process the 
@@ -132,8 +136,16 @@ class Processor:
             # Map both radars to the same Cartesian space and fuse using Maximum Intensity Projection
             Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
 
-            # Re-sample to Polar space for visualization
-            interp_fused = RegularGridInterpolator((self.y_grid, self.x_grid), Z_cart, bounds_error=False, fill_value=0)
+            # --- PERSISTENCE (Lissage temporel) ---
+            if self.smooth_heatmap is None:
+                self.smooth_heatmap = Z_cart
+            else:
+                # On mélange l'ancienne et la nouvelle frame
+                self.smooth_heatmap = (self.alpha * Z_cart) + ((1 - self.alpha) * self.smooth_heatmap)
+
+            # On continue le process avec la version lissée
+            interp_fused = RegularGridInterpolator((self.y_grid, self.x_grid), self.smooth_heatmap, bounds_error=False, fill_value=0)
+       
             Z_polar = np.flip(interp_fused(self.pts_back).reshape(self.POLAR_SHAPE), axis=0)
 
             # Normalize 
