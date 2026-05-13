@@ -14,12 +14,6 @@ def beamform_2d_s(beat_freq_data, radar_params, x_locs, dets):
     ----------
     beat_freq_data : np.ndarray
         The beat frequency data, typically a 3D array.
-    phi_s : float
-        The starting azimuth angle in degrees.
-    phi_e : float
-        The ending azimuth angle in degrees.
-    phi_res : float
-        The azimuth angle resolution in degrees.
     x_locs : np.ndarray
         The x-coordinates of the antennas.
     r_idxs : np.ndarray
@@ -37,15 +31,16 @@ def beamform_2d_s(beat_freq_data, radar_params, x_locs, dets):
 
     # Radar parameters
     lm = radar_params["lm"]
+    k = 2 * np.pi / lm  
 
-    # Get the azimuth angles and range indices
+    # Get the azimuth angles, elevation angles and range indices
     phi = radar_params["phi"]
     num_phi = len(phi)
     r_idxs = radar_params["range_idx"]
 
     # Compute the phase shifts for each azimuth angle
-    angles = x_locs * np.cos(phi[:, np.newaxis])
-    phase_shifts = np.exp((1j * 2 * np.pi / lm) * angles)
+    p = x_locs * np.cos(phi[:, np.newaxis])
+    phase_shifts = np.exp((1j * k) * p)
 
     # Initialize the spherical power array
     r_idx, d_idx = np.nonzero(dets)
@@ -56,6 +51,59 @@ def beamform_2d_s(beat_freq_data, radar_params, x_locs, dets):
         beat = beat_freq_data[:, d, r]
         beamformed_signal = beat[np.newaxis, :] * phase_shifts
         sph_pwr[:, r] = np.maximum(sph_pwr[:, r], np.abs(np.sum(beamformed_signal, axis=-1)))
+
+    return sph_pwr
+
+def beamform_3d(beat_freq_data, radar_params, x_locs, z_locs, dets):
+    """
+    Performs 2D beamforming along the azimuth (horizontal) dimension, this results in a bird eye view image.
+    beat_freq_data : np.ndarray
+        The beat frequency data, typically a 3D array.
+    x_locs : np.ndarray
+        The x-coordinates of the antennas.
+    y_locs : np.ndarray
+        The z-coordinates of the antennas.
+    r_idxs : np.ndarray
+        The range indices corresponding to the beat frequency data.
+    radar_params : dict
+        A dictionary containing radar parameters such as sample rate, number of range samples, etc.
+    dets : np.ndarray
+        The detections from the CFAR process.
+
+    Returns
+    -------
+    sph_pwr : np.ndarray
+        The spherical power array after beamforming, with shape (num_phi, num_theta, num_range).
+    """
+    # Radar parameters
+    lm = radar_params['lm']
+    k = 2 * np.pi / lm  
+    
+    # Get the azimuth angles and range indices
+    phi = radar_params["phi"]
+    num_phi = len(phi)
+    theta = radar_params["theta"]
+    num_theta = len(theta)
+    r_idxs = radar_params["range_idx"]
+
+    # Compute the phase shifts for each azimuth angle
+    phase_x = x_locs[np.newaxis, np.newaxis, :] * (np.sin(theta)[np.newaxis, :, np.newaxis] * np.cos(phi)[:, np.newaxis, np.newaxis])
+    phase_z = z_locs[np.newaxis, np.newaxis, :] * np.cos(theta)[np.newaxis, :, np.newaxis]
+    phase_shifts = np.exp(1j * k * (phase_x + phase_z))
+
+    # Initialize the spherical power array
+    r_idx, d_idx = np.nonzero(dets)
+    sph_pwr = np.zeros((num_phi, num_theta, r_idxs.shape[0]), dtype=np.complex64)
+
+    # Apply the phase shifts to the beat frequency data and sum over the antennas
+    for d, r in zip(r_idx, d_idx):
+        beat = beat_freq_data[:, d, r]  # (num_antennas,)
+
+        # beat: (1, 1, num_antennas) * phase_shifts: (num_phi, num_theta, num_antennas)
+        beamformed_signal = beat[np.newaxis, np.newaxis, :] * phase_shifts
+        summed = np.abs(np.sum(beamformed_signal, axis=-1))  # (num_phi, num_theta)
+
+        sph_pwr[:, :, r] = np.maximum(sph_pwr[:, :, r], summed)
 
     return sph_pwr
 
