@@ -229,10 +229,14 @@ def apply_wall_compensation(power_map, radar_params, wall_params):
         Power map after wall loss compensation.
     """
 
+    r_idxs = radar_params["range_idx"]
+    wall_range_bin = wall_params["wall_range_bin"]
     L_wall_sq = wall_params["L_wall_squared"]
 
-    # Scale the entire power map by L_wall^2 to undo the two-way attenuation
-    compensated_map = power_map * L_wall_sq
+    compensated_map = power_map.copy()
+
+    # Only boost range bins BEHIND the wall
+    compensated_map[:, wall_range_bin:] *= L_wall_sq
 
     return compensated_map
 
