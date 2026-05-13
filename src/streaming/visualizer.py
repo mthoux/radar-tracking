@@ -36,19 +36,20 @@ class Visualizer(ShowBase):
     def __init__(self, queue_out, cfg_radar, stop_event):
         ShowBase.__init__(self)
         self.q_out = queue_out
-        self.stop_event = stop_event
+        self.stop_event = stop_event     
+        self.do_bg_removal = cfg_radar["do_bg_removal"]
 
         # Display parameters from config
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
 
         # Matplotlib figure initialization
-        gs = GridSpec(2, 2, width_ratios=[1, 1.5], height_ratios=[1, 0.5])
-        self.fig = plt.figure(figsize=(12, 10))
-        
+        gs = GridSpec(3, 2, width_ratios=[0.4, 0.6], height_ratios=[0.5, 0.25, 0.25])
+        self.fig = plt.figure(figsize=(14, 12))
+                
         # 1. Bird Eye View (Polar)
         self.ax = self.fig.add_subplot(gs[0, 0], projection='polar')
-        self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs)
+        self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs)   
 
         # 2. GTrack (Cartesian)
         self.ax_3 = self.fig.add_subplot(gs[:, 1])
@@ -69,6 +70,20 @@ class Visualizer(ShowBase):
         self.ax_1d.set_title(f"Profil de Puissance (Res: {res*100:.1f}cm)")
         self.ax_1d.set_xlabel("Distance réelle (m)")
         self.ax_1d.grid(True, alpha=0.3)
+
+        # 4. Profil Azimutal (Puissance vs Angle)
+        self.ax_azimuth = self.fig.add_subplot(gs[2, 0])
+
+        # On convertit en degrés ET on décale de -90 pour avoir l'échelle [-90, 90]
+        self.phi_deg = np.degrees(self.phi) - 90 
+
+        self.line_azimuth, = self.ax_azimuth.plot(self.phi_deg, np.zeros_like(self.phi), color='blue')
+        self.ax_azimuth.set_ylim(0, 1.1)
+
+        # Mise à jour auto des limites
+        self.ax_azimuth.set_xlim(self.phi_deg[0], self.phi_deg[-1]) 
+        self.ax_azimuth.set_title("Profil de Puissance par Angle (Centré)")
+        self.ax_azimuth.set_xlabel("Angle (degrés)")
 
         # Artists and UI elements
         self.last_artists = []
@@ -106,13 +121,18 @@ class Visualizer(ShowBase):
             self.im.set_array(data["heatmap"].ravel())
             update_ax_gtrack(self.ax_3, data["tracks"], self.last_artists)
 
-            # --- NOUVEAU : Update Graphique 1D ---
+            # Update Graphique 1D ---
             if "range_profile" in data:
                 self.line_1d.set_ydata(data["range_profile"])
 
+            # Mise à jour du profil en angle (Y)
+            if "azimuth_profile" in data:
+                self.line_azimuth.set_ydata(data["azimuth_profile"])
+
             # 2. Update Title based on learning state
-            if data["learning_left"] > 0:
-                self.ax.set_title(f"Learning background... ({data['learning_left']} frames left)")
+            if self.do_bg_removal:
+                if data["learning_left"] > 0:
+                    self.ax.set_title(f"Learning background... ({data['learning_left']} frames left)")
             else:
                 self.ax.set_title("Radar Active")
 

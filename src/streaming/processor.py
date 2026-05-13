@@ -50,6 +50,9 @@ class Processor:
 
         # GTrack Module Initialization
         self.tracker = GTrackModule2D(cfg_gtrack)
+
+        # Récupération de l'option (True par défaut si absente de la config)
+        self.do_bg_removal = cfg_radar.get("do_bg_removal", True)
         
         # Background / Clutter Removal State
         self.CLUTTER_LEARN_LIMIT = 50
@@ -140,11 +143,13 @@ class Processor:
                 to_plot /= norm_factor
 
             # --- BACKGROUND SUBTRACTION ---
-            if len(self.clutter_frames) < self.CLUTTER_LEARN_LIMIT:
-                self.clutter_frames.append(to_plot.copy())
-                self.clutter_map = np.mean(self.clutter_frames, axis=0)
-            else:
-                to_plot = np.clip(to_plot - self.clutter_map, 0, None)
+
+            if self.do_bg_removal:
+                if len(self.clutter_frames) < self.CLUTTER_LEARN_LIMIT:
+                    self.clutter_frames.append(to_plot.copy())
+                    self.clutter_map = np.mean(self.clutter_frames, axis=0)
+                elif self.clutter_map is not None:
+                    to_plot = np.clip(to_plot - self.clutter_map, 0, None)
 
             # Sharpen the heatmap for point detection
             to_plot = to_plot ** 8
@@ -190,10 +195,13 @@ class Processor:
                     self.arduino = None
                     print("❌ Connexion Arduino perdue.")
 
-            # Calcul du Range Profile (Puissance vs Distance)
-            # On prend la puissance max pour chaque rangée (distance)
-            # Pour le truc de Romain
+            # --- CALCUL DES PROFILS ---
+            # Puissance vs Distance (déjà présent)
             range_profile = np.max(to_plot, axis=0)
+
+            # Puissance vs Angle (Nouveau)
+            # On prend le max sur l'axe des distances (axis 1) pour chaque angle
+            azimuth_profile = np.max(to_plot, axis=1)
 
             # --- DATA OUTPUT ---
             # Send this to the visualizer
@@ -202,6 +210,7 @@ class Processor:
                     self.q_out.put_nowait({
                         "heatmap": to_plot,
                         "range_profile": range_profile, # Nouvelle donnée
+                        "azimuth_profile": azimuth_profile,
                         "tracks": tracks,
                         "fall_events": fall_events, # On envoie les nouveaux événements
                         "all_falls": self.fall_detector.fall_events, # Historique complet
