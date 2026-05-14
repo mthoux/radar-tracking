@@ -1,15 +1,15 @@
 import argparse
 import numpy as np
-from gtrack.config import GTrackConfig2D
+from src.processing.consumer.gtrack.config import GTrackConfig2D
 
 import sys
 import time
 import warnings
 from multiprocessing import Process, Queue, Event
 
-from .worker import process
-from .visualizer import Visualizer
-from .fuser import Fuser
+from .producer.worker import process
+from .consumer.visualizer import Visualizer
+from .consumer.fuser import Fuser
 
 # Suppress COM/User warnings before they trigger
 warnings.simplefilter("ignore", UserWarning)

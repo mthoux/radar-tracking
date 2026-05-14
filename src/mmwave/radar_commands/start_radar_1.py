@@ -1,6 +1,7 @@
-from mmwavecapture.radar import Radar
-from mmwavecapture import dca1000
+from src.mmwave.mmwavecapture.radar import Radar
+from src.mmwave.mmwavecapture import dca1000
 
+from pathlib import Path
 
 def main():
     """
@@ -12,7 +13,8 @@ def main():
     dca = dca1000.DCA1000()
 
     # Initialize the radar
-    cfg_file = "../configs/profile_super.cfg"
+    ROOT_DIR = Path(__file__).resolve().parents[3]
+    cfg_file = ROOT_DIR / "configs" / "profile_super.cfg" 
     radar = Radar(
         config_port="/dev/tty.usbmodemR20910491",
         config_baudrate=115200,

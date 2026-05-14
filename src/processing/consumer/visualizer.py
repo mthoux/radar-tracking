@@ -10,7 +10,7 @@ from direct.task import Task
 from panda3d.core import loadPrcFileData
 
 # Internal visualization imports
-from visualization.visualization import (
+from src.processing.consumer.visualizer_functions import (
     configure_ax_bf, 
     configure_ax_db, 
     configure_ax_gtrack, 

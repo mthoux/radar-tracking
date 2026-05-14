@@ -1,9 +1,9 @@
 import numpy as np
 import queue
 
-from mmwave.dataloader.adc import DCA1000
-from processing.processing import process_frame, beamform_2d_s
-from utils.utils import get_ant_pos_2d
+from src.mmwave.dataloader.adc import DCA1000
+from src.processing.producer.worker_functions import process_frame, beamform_2d_s
+from src.processing.utils.utils import get_ant_pos_2d
 
 def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip):
     """

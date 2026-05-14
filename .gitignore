@@ -28,3 +28,7 @@ share/
 dist/
 build/
 *.egg-info/
+
+
+# Perso
+perso/

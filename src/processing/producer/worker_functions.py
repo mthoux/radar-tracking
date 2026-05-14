@@ -1,9 +1,7 @@
 import numpy as np
-from scipy.ndimage import median_filter
 
 from scipy.signal import convolve2d
 from sklearn.cluster import DBSCAN
-from gtrack.config import Detection
 
 
 def beamform_2d_s(beat_freq_data, radar_params, x_locs, dets):

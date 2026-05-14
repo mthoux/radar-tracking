@@ -7,8 +7,8 @@ from typing import Dict, Any, List
 import serial
 
 # Local imports
-from gtrack.config import Detection
-from gtrack.module import GTrackModule2D
+from src.processing.consumer.gtrack.config import Detection
+from src.processing.consumer.gtrack.module import GTrackModule2D
 from .fall_detection import FallDetector
 
 # Global configuration to avoid COM initialization issues on some systems

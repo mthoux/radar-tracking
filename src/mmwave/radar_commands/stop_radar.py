@@ -1,4 +1,4 @@
-from mmwavecapture import dca1000
+from src.mmwave.mmwavecapture import dca1000
 
 def stop_dca_only(config_dca):
     # On initialise uniquement le DCA
