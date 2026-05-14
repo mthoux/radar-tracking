@@ -7,9 +7,9 @@ import time
 import warnings
 from multiprocessing import Process, Queue, Event
 
-from .producer import producer_real_time_1843
+from .worker import process
 from .visualizer import Visualizer
-from .processor import Processor
+from .fuser import Fuser
 
 # Suppress COM/User warnings before they trigger
 warnings.simplefilter("ignore", UserWarning)
@@ -18,10 +18,10 @@ sys.coinit_flags = 2  # Multithreading concurrency mode for COM
 def consumer(q_radar1, q_radar2, cfg_radar, cfg_gtrack, stop_event):
     q_results = Queue(maxsize=1)
 
-    processor = Processor(q_radar1, q_radar2, q_results, cfg_radar, cfg_gtrack)
+    fuser = Fuser(q_radar1, q_radar2, q_results, cfg_radar, cfg_gtrack)
     visualizer = Visualizer(q_results, cfg_radar, stop_event)
     
-    visualizer.taskMgr.add(processor.process, "RadarProcessingTask")
+    visualizer.taskMgr.add(fuser.process, "RadarProcessingTask")
     visualizer.run()
 
 def launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network) -> None:
@@ -33,13 +33,13 @@ def launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network) -> None:
     data_producers = [
         Process(
             name="Producer_Radar_1",
-            target=producer_real_time_1843,
+            target=process,
             args=(q_main_1, cfg_radar, cfg_cfar, cfg_network["radar_1"]["ports"][0], cfg_network["radar_1"]["ports"][1], cfg_network["radar_1"]["ip_dev"], cfg_network["radar_1"]["ip_host"]),
             daemon=True
         ),
         Process(
             name="Producer_Radar_2",
-            target=producer_real_time_1843, 
+            target=process, 
             args=(q_main_2, cfg_radar, cfg_cfar, cfg_network["radar_2"]["ports"][0], cfg_network["radar_2"]["ports"][1], cfg_network["radar_2"]["ip_dev"], cfg_network["radar_2"]["ip_host"]), 
             daemon=True
         )

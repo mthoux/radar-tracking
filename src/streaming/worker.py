@@ -5,7 +5,7 @@ from mmwave.dataloader.adc import DCA1000
 from processing.processing import process_frame, beamform_2d_s
 from utils.utils import get_ant_pos_2d
 
-def producer_real_time_1843(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip):
+def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip):
     """
     Producer function for real-time data acquisition from the DCA1000 connected to the AWR1843 radar.
 
@@ -39,6 +39,12 @@ def producer_real_time_1843(q, cfg_radar, cfg_cfar, config_port, data_port, stat
     # Get the antenna positions
     x_locs, _, _ = get_ant_pos_2d(num_tx*num_rx, adc_samples, num_rx)
 
+    # --- AJOUT POUR LE BG REMOVAL ---
+    clutter_frames = []
+    CLUTTER_LEARN_LIMIT = 50
+    clutter_map = None
+    do_bg_removal = True # À mettre en config idéalement
+
     # Setup the DCA1000
     print("⌛️ Starting producer for DCA1000 with ip " + static_ip + " and system ip " + system_ip)
     dca = DCA1000(config_port=config_port, data_port=data_port, static_ip=static_ip, system_ip=system_ip)
@@ -66,24 +72,35 @@ def producer_real_time_1843(q, cfg_radar, cfg_cfar, config_port, data_port, stat
 
             # Apply FFT along the range dimension
             range_fft = np.fft.fft(beat_freq_data, axis=-1)
-            last_frame_fft = np.fft.fft(last_frame, axis=-1)
+        
+            range_fft_subset = range_fft[:, :, r_idxs]
 
-            # Update the last frame
-            last_frame = beat_freq_data
+            # 3. BACKGROUND REMOVAL
+            # if do_bg_removal:
+            #     if len(clutter_frames) < CLUTTER_LEARN_LIMIT:
+            #         # Phase d'apprentissage : on stocke la frame
+            #         # Conseil : stocke la moyenne sur les chirps pour économiser la mémoire
+            #         clutter_frames.append(np.mean(range_fft_subset, axis=1))
 
-            # Substract the last frame and keep only the corresponding range indices
-            range_fft_s = range_fft - last_frame_fft
-            range_fft_s = range_fft_s[:, :, r_idxs]
+            #     else:
+            #         if clutter_map is None:
+            #             # On calcule la carte moyenne une seule fois
+            #             clutter_map = np.mean(clutter_frames, axis=0)
+            #             print("✅ Clutter map calculée. Filtrage actif.")
+                        
+            #         # Soustraction cohérente : on aligne les dimensions du clutter_map (Ant, Range)
+            #         # avec range_fft_subset (Ant, Chirp, Range) via np.newaxis
+            #         range_fft_subset = range_fft_subset - clutter_map[:, np.newaxis, :]
 
             # Set the static range indices to zero
-            range_fft_s[:, :, 0:20] = 0
-            range_fft_s[:, :, 120:150] = 0
+            range_fft_subset[:, :, 0:10] = 0
+            range_fft_subset[:, :, 120:150] = 0
 
             # Compute CFAR
-            dets = process_frame(range_fft_s, cfg_cfar)
+            dets = process_frame(range_fft_subset, cfg_cfar)
 
             # Compute beamforming
-            bf_output = beamform_2d_s(range_fft_s, cfg_radar, x_locs[:,0], dets)
+            bf_output = beamform_2d_s(range_fft_subset, cfg_radar, x_locs[:,0], dets)
 
             # Send the data to the queue
             try:

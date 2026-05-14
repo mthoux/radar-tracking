@@ -15,7 +15,7 @@ from .fall_detection import FallDetector
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
 
-class Processor:
+class Fuser:
     """
     Handles the fusion of multiple radar streams, background subtraction, 
     and target tracking using GTrack.
