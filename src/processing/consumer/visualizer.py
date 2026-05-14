@@ -46,10 +46,23 @@ class Visualizer(ShowBase):
         # Matplotlib figure initialization
         gs = GridSpec(3, 2, width_ratios=[0.4, 0.6], height_ratios=[0.5, 0.25, 0.25])
         self.fig = plt.figure(figsize=(14, 12))
+
+        self.fig.subplots_adjust(
+            hspace=0.6
+        )
                 
         # 1. Bird Eye View (Polar)
         self.ax = self.fig.add_subplot(gs[0, 0], projection='polar')
         self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs)   
+
+        # pos = self.ax.get_position()
+
+        # self.ax.set_position([
+        #     pos.x0 - 0.6,
+        #     pos.y0 - 0.17,
+        #     pos.width + 0.10,
+        #     pos.height + 0.20
+        # ])
 
         # 2. GTrack (Cartesian)
         self.ax_3 = self.fig.add_subplot(gs[:, 1])
@@ -133,8 +146,8 @@ class Visualizer(ShowBase):
             if self.do_bg_removal:
                 if data["learning_left"] > 0:
                     self.ax.set_title(f"Learning background... ({data['learning_left']} frames left)")
-            else:
-                self.ax.set_title("Radar Active")
+                else:
+                    self.ax.set_title("Radar Active")
 
             # 3. Update Fall Log & Title
             if data.get("fall_events"):

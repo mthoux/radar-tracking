@@ -226,7 +226,7 @@ class Fuser:
                         "tracks": tracks,
                         "fall_events": fall_events, # On envoie les nouveaux événements
                         "all_falls": self.fall_detector.fall_events, # Historique complet
-                        "learning_left": max(0, self.CLUTTER_LEARN_LIMIT - len(self.clutter_frames))
+                        "learning_left": self.CLUTTER_LEARN_LIMIT - len(self.clutter_frames)
                     })
             except:
                 pass # Queue full, skip frame to maintain real-time
