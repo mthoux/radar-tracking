@@ -74,13 +74,12 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
             # Compute CFAR
             dets = process_frame(range_fft_subset, cfg_cfar)
 
-            # Wallah bilal
+            # Average all chirps (no use of Doppler)
             data_integrated = np.mean(range_fft_subset, axis=1)
             data_for_3d_bf = data_integrated[:, np.newaxis, :]
-            r_local_idxs = np.arange(data_for_3d_bf.shape[-1])
 
             # Compute beamforming
-            sph_pwr = beamform_3d(data_for_3d_bf, cfg_radar['phi_bf'], cfg_radar['theta'], x_locs[:, np.newaxis], z_locs[:, np.newaxis], r_local_idxs, cfg_radar)[0]
+            sph_pwr = beamform_3d(data_for_3d_bf, cfg_radar['phi'], cfg_radar['theta'], x_locs[:, np.newaxis], z_locs[:, np.newaxis], np.arange(data_for_3d_bf.shape[-1]), cfg_radar)[0]
             #bf_output = beamform_2d_s(range_fft_subset, cfg_radar, x_locs, dets)
 
             # Send the data to the queue

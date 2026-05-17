@@ -89,6 +89,7 @@ def main():
         "range_idx": np.arange(0, 100, 1),
         "phi": np.deg2rad(np.arange(0, 180, 1)),
         "width": 100,
+        "height": 100,
         "offset_x_1": +int(10 / (0.044 * 100)), #cm to idx : int(cm / (range_res_m * 100))
         "offset_x_2": -int(10 / (0.044 * 100)),
         "offset_y_1": 0.0,

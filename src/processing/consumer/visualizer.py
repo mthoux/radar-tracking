@@ -98,22 +98,23 @@ class Visualizer(ShowBase):
         self.ax_azimuth.set_title("Profil de Puissance par Angle (Centré)")
         self.ax_azimuth.set_xlabel("Angle (degrés)")
 
-        # 5. Carte 2D d'Élévation vs Distance (Ajouté tout en bas à gauche, ligne index 3)
+        # 5. Profil d'Élévation 1D (Puissance vs Hauteur Z)
         self.ax_elevation = self.fig.add_subplot(gs[3, 0])
-        self.theta_deg = np.arange(-20, 21, 1)
-
-        extent = [self.r_metres[0], self.r_metres[-1], self.theta_deg[0], self.theta_deg[-1]]
         
-        self.im_elevation = self.ax_elevation.imshow(
-            np.zeros((len(self.theta_deg), len(self.r_idxs))), 
-            cmap='jet', 
-            aspect='auto', 
-            origin='lower',
-            extent=extent
-        )
-        self.ax_elevation.set_title("Carte Élévation vs Distance")
-        self.ax_elevation.set_xlabel("Distance réelle (m)")
-        self.ax_elevation.set_ylabel("Élévation (degrés)")
+        # Récupération de la grille Z depuis la configuration (doit correspondre au Fuser)
+        # Si tu as un pas de 1m dans ton Fuser, on génère le même vecteur ici :
+        h_max = cfg_radar.get("height", 5) 
+        self.z_metres = np.arange(-h_max, h_max, 1) # Axe horizontal : hauteur en mètres
+        
+        # Initialisation de la ligne (X = hauteurs, Y = puissances à 0 au début)
+        self.line_elevation, = self.ax_elevation.plot(self.z_metres, np.zeros_like(self.z_metres), color='purple')
+        
+        self.ax_elevation.set_ylim(0, 1.1)
+        self.ax_elevation.set_xlim(self.z_metres[0], self.z_metres[-1]) 
+        self.ax_elevation.set_title("Profil de Puissance selon la Hauteur (Z)")
+        self.ax_elevation.set_xlabel("Hauteur réelle (m)")
+        self.ax_elevation.set_ylabel("Intensité normalisée")
+        self.ax_elevation.grid(True, alpha=0.3)
 
         # Artists and UI elements
         self.last_artists = []
@@ -159,15 +160,15 @@ class Visualizer(ShowBase):
             if "azimuth_profile" in data:
                 self.line_azimuth.set_ydata(data["azimuth_profile"])
 
-            # (Le nouvel ajout) Mise à jour de la carte d'élévation 2D
+            # Mise à jour du profil de hauteur 1D (Z)
             if "elevation_profile" in data:
-                matrix_elev = np.abs(data["elevation_profile"])
-                max_elev = np.max(matrix_elev)
+                vector_elev = np.abs(data["elevation_profile"])
+                max_elev = np.max(vector_elev)
                 if max_elev > 0:
-                    matrix_elev /= max_elev
+                    vector_elev /= max_elev  # Normalisation entre 0 et 1
                 
-                self.im_elevation.set_array(matrix_elev)
-                self.im_elevation.set_clim(vmin=0, vmax=matrix_elev.max())
+                # Mise à jour de la courbe
+                self.line_elevation.set_ydata(vector_elev)
 
             # 2. Update Title based on learning state
             if self.do_bg_removal:
