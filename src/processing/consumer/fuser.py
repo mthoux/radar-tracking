@@ -25,12 +25,14 @@ class Fuser:
         self.y_grid = self.r_idxs
         self.X, self.Y = np.meshgrid(self.x_grid, self.y_grid, indexing='xy')
 
-        # --- ÉTATS ---
+        # --- States ---
         self.latest_msg = {0: None, 1: None}
         self.msg_ready = [False, False]
         self.smooth_heatmap = None
+
+        # --- BG REMOVAL ---
         self.clutter_frames, self.clutter_map = [], None
-        self.CLUTTER_LEARN_LIMIT = 50
+        self.CLUTTER_LEARN_LIMIT = cfg_radar["bgrm_learning_frames"]
         self.do_bg_removal = cfg_radar.get("do_bg_removal", True)
 
         # --- INITIALISATION MODULES ---
@@ -82,8 +84,7 @@ class Fuser:
         for i, q in enumerate([self.q1, self.q2]):
             while not q.empty():
                 msg = q.get_nowait()
-                if msg[0] == 'bf':
-                    self.latest_msg[i], self.msg_ready[i] = msg[1], True
+                self.latest_msg[i], self.msg_ready[i] = msg, True
         return all(self.msg_ready)
 
     def process(self, task: Task):
@@ -137,7 +138,6 @@ class Fuser:
 
         # 5. Sortie & Arduino
         self._update_arduino(tracks, fall_events)
-        #self._send_to_visualizer(to_plot, tracks, fall_events)
 
         if not self.q_out.full():
             # On recalcule combien de frames il reste à apprendre
@@ -162,20 +162,3 @@ class Fuser:
             self.arduino.write(b'1' if tracks else b'0')
             self.arduino.write(b'F' if falls else b'N')
         except: self.arduino = None
-
-
-
-    def _send_to_visualizer(self, heatmap, tracks, falls):
-        if not self.q_out.full():
-            # On recalcule combien de frames il reste à apprendre
-            learning_left = max(0, self.CLUTTER_LEARN_LIMIT - len(self.clutter_frames))
-            
-            self.q_out.put_nowait({
-                "heatmap": heatmap,
-                "range_profile": np.max(heatmap, axis=0),
-                "azimuth_profile": np.max(heatmap, axis=1),
-                "tracks": tracks,
-                "fall_events": falls,
-                "learning_left": learning_left,
-                "elevation_profile": np.max(self.latest_msg[0], axis=0) 
-            })

@@ -104,7 +104,16 @@ def main():
         "c": 3e8,
         "lm": 3e8 / 77e9, # c / f
         "slope": 70.150e12,
-        "do_bg_removal": args.bg_removal
+        "do_bg_removal": args.bg_removal,
+
+        "phi_deg": np.arange(-60, 61, 1),      # Azimut de -60° à +60° pas de 1°
+        "theta_deg": np.arange(-20, 21, 1),    # Élévation de -20° à +20° pas de 1°
+            
+            # Les mêmes convertis directement en radians pour les calculs de beamform_3d
+        "phi_bf": np.deg2rad(np.arange(-60, 61, 1)),
+        "theta": np.deg2rad(np.arange(-20, 21, 1)),
+
+        "bgrm_learning_frames": 50
     }
 
     cfg_network = {

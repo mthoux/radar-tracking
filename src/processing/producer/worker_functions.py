@@ -202,41 +202,39 @@ def compute_dbscan(output_top, r_idxs, phi, eps=0.5, min_samples=5, p_treshold= 
 
 ################# Change the values based on how much of the azimuth angles you want to see and the resolution ##################
 # Define field of view in degrees that you want to process in theta, phi and range bins
-def beamform_3d(beat_freq_data, phi_s, phi_e, phi_res, theta_s, theta_e, theta_res, x_idx, z_idx, r_idxs, radar_params):
+def beamform_3d(beat_freq_data, phi_rad, theta_rad, x_idx, z_idx, r_idxs, radar_params):
     """
-    - beat_freq_data: beat data AKA the range FFT (size: num_x_stps * num_z_stps * num TX * num RX, num ADC samples)
-    - phi_s: first azimuth angle that you want to start computing 
-    - phi_e: last azimuth angle that you want to compute 
-    - phi_res: resolution of the azimuth angles you want to compute
-    - theta_s: first elevation angle that you want to start computing 
-    - theta_e: last elevation angle that you want to compute 
-    - theta_res: resolution of the elevation angles you want to compute
-    - x_idx: x coordinate of antenna locations
-    - z_idx: z coordinate of antenna locations
-    - r_idxs: range bins to calculate 
-    - radar_parms: radar_params if needed 
+    Beamforming 3D utilisant des tableaux d'angles précalculés en radians.
 
-    Returns:
+    Parameters
+    ----------
+    - beat_freq_data: beat data AKA the range FFT (size: num_antennas, num_chirps, num_samples)
+    - phi_rad: array of azimuth angles in radians (ex: de -60° à +60°)
+    - theta_rad: array of elevation angles in radians (ex: de -20° à +20°)
+    - x_idx: x coordinate of antenna locations (shape: Num_Ant x 1)
+    - z_idx: z coordinate of antenna locations (shape: Num_Ant x 1)
+    - r_idxs: range bins to calculate 
+    - radar_params: radar_params dict containing wavelength 'lm'
+
+    Returns
+    -------
     - sph_pwr: beamformed result (size: n_phi, n_theta, n_range)
-    - phi: array of azimuth angles 
-    - theta: array of elevation angles 
+    - phi_rad: array of azimuth angles 
+    - theta_rad: array of elevation angles 
     """
     # Parameters
     wavelength = radar_params['lm']
     k = 2 * np.pi / wavelength  
-    
-    theta = np.deg2rad(np.arange(theta_s, theta_e + theta_res, theta_res))
-    phi = np.deg2rad(np.arange(phi_s, phi_e + phi_res, phi_res)) 
 
-    num_theta = len(theta)
-    num_phi = len(phi)
+    num_theta = len(theta_rad)
+    num_phi = len(phi_rad)
     num_bin = len(r_idxs)
 
     # Output beamforming cube: (azimuth, elevation, range)
     sph_pwr = np.zeros((num_phi, num_theta, num_bin), dtype=complex)
 
     # Loop over elevation angles
-    for it, t in enumerate(theta):
+    for it, t in enumerate(theta_rad):
 
         # Elevation steering phase applied along the z-axis
         e2 = np.exp(1j * k * (z_idx * np.cos(t)))
@@ -248,7 +246,7 @@ def beamform_3d(beat_freq_data, phi_s, phi_e, phi_res, theta_s, theta_e, theta_r
         data_combined = np.sum(data_z, axis=1)
         
         # Loop over azimuth angles
-        for ip, p in enumerate(phi):
+        for ip, p in enumerate(phi_rad):
 
             # Azimuth steering phase along x-axis
             e1 = np.exp(1j * k * (x_idx * np.cos(p) * np.sin(t)))
@@ -256,4 +254,4 @@ def beamform_3d(beat_freq_data, phi_s, phi_e, phi_res, theta_s, theta_e, theta_r
             # Beamform and extract requested range bins
             sph_pwr[ip, it, :] = np.sum(data_combined * e1, axis=0)[r_idxs]
 
-    return sph_pwr, phi, theta 
+    return sph_pwr, phi_rad, theta_rad
