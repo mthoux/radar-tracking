@@ -32,3 +32,6 @@ radar-tracking/
 ## Licence
 
 MIT License
+
+
+Pour lancé les radars attention au cu/tty. Je vais faire un script pour ca

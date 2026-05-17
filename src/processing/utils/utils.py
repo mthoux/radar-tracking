@@ -116,6 +116,42 @@ def get_ant_static_2d(num_frames, num_tx, num_rx, adc_samples):
 
     return x_ant_pos, z_ant_pos
 
+def hardcoded_get_ant_static_2d():
+    """
+    Computes virtual antenna positions for static radar setup.
+
+    Returns:
+    -------
+        x_ant_pos: np.ndarray of virtual antenna x-positions
+        z_ant_pos: np.ndarray of virtual antenna z-positions
+    """
+
+    lm = 3e8 / 77e9  # lambda for 77 GHz
+
+    RX_X = np.array([-3*lm/2, -lm, -lm/2, 0])      # 4 Rx
+    RX_Z = np.array([0, 0, 0, 0])
+    TX_X = np.array([0, lm, 2*lm])                 # 3 Tx
+    TX_Z = np.array([0, lm/2, 0])
+
+    x_ant_pos = []
+    z_ant_pos = []
+
+    for tx_i in range(len(TX_X)):
+        for rx_i in range(len(RX_X)):
+            x = TX_X[tx_i] + RX_X[rx_i]
+            z = TX_Z[tx_i] + RX_Z[rx_i]
+            x_ant_pos.append(x)
+            z_ant_pos.append(z)
+
+    x_ant_pos = np.array(x_ant_pos)
+    z_ant_pos = np.array(z_ant_pos)
+
+    # Optional: make origin zero-centered
+    x_ant_pos -= np.min(x_ant_pos)
+    z_ant_pos -= np.min(z_ant_pos)
+
+    return x_ant_pos, z_ant_pos
+
 # Helper function to get point cloud values
 def plot_3d_cart_heatmap(ax,voxel,xaxis,yaxis,zaxis,threshold):
     ''''

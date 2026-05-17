@@ -18,7 +18,7 @@ class Fuser:
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
         self.snr_threshold = cfg_gtrack.min_snr_threshold
-        self.alpha = 0.5 
+        self.alpha = 0.7
         
         # Grille Cartésienne
         self.x_grid = np.arange(-cfg_radar["width"], cfg_radar["width"], 1)
@@ -118,20 +118,25 @@ class Fuser:
 
         # 4. Tracking & Fall Detection
         indices = np.argwhere(to_plot >= self.snr_threshold)
-        detections = [Detection(r=self.r_idxs[i], az=self.phi[j], v=0, snr=to_plot[j,i]) for j,i in indices[:200]]
+        if len(indices) > 200:
+            snr_vals = to_plot[indices[:, 0], indices[:, 1]]
+            top_idx = np.argsort(snr_vals)[::-1][:200]
+            indices = indices[top_idx]
+
+        detections = [Detection(r=self.r_idxs[i], az=self.phi[j], v=0, snr=to_plot[j,i]) for j,i in indices]
         
         tracks = self.tracker.step(detections).get('tracks', [])
         for t in tracks: self.fall_detector.last_positions[t['uid']] = (t['pos'][0], t['pos'][1])
         fall_events = self.fall_detector.update({t['uid'] for t in tracks})
 
         # 5. Sortie & Arduino
-        self._update_hardware(tracks, fall_events)
+        self._update_arduino(tracks, fall_events)
         self._send_to_visualizer(to_plot, tracks, fall_events)
 
         self.msg_ready = [False, False]
         return task.cont
 
-    def _update_hardware(self, tracks, falls):
+    def _update_arduino(self, tracks, falls):
         if not self.arduino: return
         try:
             self.arduino.write(b'1' if tracks else b'0')

@@ -2,8 +2,8 @@ import numpy as np
 import queue
 
 from src.mmwave.dataloader.adc import DCA1000
-from src.processing.producer.worker_functions import process_frame, beamform_2d_s
-from src.processing.utils.utils import get_ant_pos_2d
+from src.processing.producer.worker_functions import process_frame, beamform_2d_s, beamform_3d
+from src.processing.utils.utils import get_ant_pos_2d, hardcoded_get_ant_static_2d
 
 def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip):
     """
@@ -37,7 +37,8 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
     last_frame = np.zeros((num_rx * num_tx, chirp_loops, adc_samples), dtype=np.complex64)
 
     # Get the antenna positions
-    x_locs, _, _ = get_ant_pos_2d(num_tx*num_rx, adc_samples, num_rx)
+    #x_locs, _, _ = get_ant_pos_2d(num_tx*num_rx, adc_samples, num_rx)
+    x_locs, z_locs = hardcoded_get_ant_static_2d()
 
     # --- AJOUT POUR LE BG REMOVAL ---
     clutter_frames = []
@@ -99,8 +100,18 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
             # Compute CFAR
             dets = process_frame(range_fft_subset, cfg_cfar)
 
+            phi_s, phi_e, phi_res = -60, 60, 1      # Azimut de -60° à +60° par pas de 1°
+            theta_s, theta_e, theta_res = -20, 20, 1 # Élévation de -20° à +20° par pas de 1°
+
+            # Wallah bilal
+            data_integrated = np.mean(range_fft_subset, axis=1)
+            data_for_3d_bf = data_integrated[:, np.newaxis, :]
+            r_local_idxs = np.arange(data_for_3d_bf.shape[-1])
+
             # Compute beamforming
-            bf_output = beamform_2d_s(range_fft_subset, cfg_radar, x_locs[:,0], dets)
+            sph_pwr = beamform_3d(data_for_3d_bf, phi_s, phi_e, phi_res, theta_s, theta_e, theta_res, x_locs[:, np.newaxis], z_locs[:, np.newaxis], r_local_idxs, cfg_radar)[0]
+            #bf_output = beamform_2d_s(range_fft_subset, cfg_radar, x_locs, dets)
+            bf_output = np.max(sph_pwr, axis=1)
 
             # Send the data to the queue
             try:
