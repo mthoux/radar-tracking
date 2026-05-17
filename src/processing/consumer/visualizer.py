@@ -44,8 +44,8 @@ class Visualizer(ShowBase):
         self.r_idxs = cfg_radar["range_idx"]
 
         # Matplotlib figure initialization
-        gs = GridSpec(3, 2, width_ratios=[0.4, 0.6], height_ratios=[0.5, 0.25, 0.25])
-        self.fig = plt.figure(figsize=(14, 12))
+        gs = GridSpec(4, 2, width_ratios=[0.4, 0.6], height_ratios=[0.4, 0.2, 0.2, 0.2])
+        self.fig = plt.figure(figsize=(14, 14))
 
         self.fig.subplots_adjust(
             hspace=0.6
@@ -98,6 +98,23 @@ class Visualizer(ShowBase):
         self.ax_azimuth.set_title("Profil de Puissance par Angle (Centré)")
         self.ax_azimuth.set_xlabel("Angle (degrés)")
 
+        # 5. Carte 2D d'Élévation vs Distance (Ajouté tout en bas à gauche, ligne index 3)
+        self.ax_elevation = self.fig.add_subplot(gs[3, 0])
+        self.theta_deg = np.arange(-20, 21, 1)
+
+        extent = [self.r_metres[0], self.r_metres[-1], self.theta_deg[0], self.theta_deg[-1]]
+        
+        self.im_elevation = self.ax_elevation.imshow(
+            np.zeros((len(self.theta_deg), len(self.r_idxs))), 
+            cmap='jet', 
+            aspect='auto', 
+            origin='lower',
+            extent=extent
+        )
+        self.ax_elevation.set_title("Carte Élévation vs Distance")
+        self.ax_elevation.set_xlabel("Distance réelle (m)")
+        self.ax_elevation.set_ylabel("Élévation (degrés)")
+
         # Artists and UI elements
         self.last_artists = []
         self.fps_text = self.ax_3.text(0.00, 1.05, "", transform=self.ax_3.transAxes, fontsize=10, color='blue')
@@ -141,6 +158,16 @@ class Visualizer(ShowBase):
             # Mise à jour du profil en angle (Y)
             if "azimuth_profile" in data:
                 self.line_azimuth.set_ydata(data["azimuth_profile"])
+
+            # (Le nouvel ajout) Mise à jour de la carte d'élévation 2D
+            if "elevation_profile" in data:
+                matrix_elev = np.abs(data["elevation_profile"])
+                max_elev = np.max(matrix_elev)
+                if max_elev > 0:
+                    matrix_elev /= max_elev
+                
+                self.im_elevation.set_array(matrix_elev)
+                self.im_elevation.set_clim(vmin=0, vmax=matrix_elev.max())
 
             # 2. Update Title based on learning state
             if self.do_bg_removal:

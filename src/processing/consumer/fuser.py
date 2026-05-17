@@ -82,17 +82,23 @@ class Fuser:
         for i, q in enumerate([self.q1, self.q2]):
             while not q.empty():
                 msg = q.get_nowait()
-                if msg[0] == 'bev':
+                if msg[0] == 'bf':
                     self.latest_msg[i], self.msg_ready[i] = msg[1], True
         return all(self.msg_ready)
 
     def process(self, task: Task):
         if not self._get_latest_data():
             return task.cont
+        
+        
+        elevation_map_r1 = np.max(self.latest_msg[0], axis=0) 
+        
+        data_2D_1 = np.max(self.latest_msg[0], axis=1)
+        data_2D_2 = np.max(self.latest_msg[1], axis=1)
 
         # 1. Fusion Cartésienne
-        v1 = map_coordinates(self.latest_msg[0], self.map_idx1, order=1).reshape(self.X.shape)
-        v2 = map_coordinates(self.latest_msg[1], self.map_idx2, order=1).reshape(self.X.shape)
+        v1 = map_coordinates(data_2D_1, self.map_idx1, order=1).reshape(self.X.shape)
+        v2 = map_coordinates(data_2D_2, self.map_idx2, order=1).reshape(self.X.shape)
         Z_cart = np.maximum(v1, v2)
 
         # 2. Lissage Temporel
@@ -131,7 +137,21 @@ class Fuser:
 
         # 5. Sortie & Arduino
         self._update_arduino(tracks, fall_events)
-        self._send_to_visualizer(to_plot, tracks, fall_events)
+        #self._send_to_visualizer(to_plot, tracks, fall_events)
+
+        if not self.q_out.full():
+            # On recalcule combien de frames il reste à apprendre
+            learning_left = max(0, self.CLUTTER_LEARN_LIMIT - len(self.clutter_frames))
+            
+            self.q_out.put_nowait({
+                "heatmap": to_plot,
+                "range_profile": np.max(to_plot, axis=0),
+                "azimuth_profile": np.max(to_plot, axis=1),
+                "tracks": tracks,
+                "fall_events": fall_events,
+                "learning_left": learning_left,
+                "elevation_profile": elevation_map_r1
+            })
 
         self.msg_ready = [False, False]
         return task.cont
@@ -142,6 +162,8 @@ class Fuser:
             self.arduino.write(b'1' if tracks else b'0')
             self.arduino.write(b'F' if falls else b'N')
         except: self.arduino = None
+
+
 
     def _send_to_visualizer(self, heatmap, tracks, falls):
         if not self.q_out.full():
@@ -154,5 +176,6 @@ class Fuser:
                 "azimuth_profile": np.max(heatmap, axis=1),
                 "tracks": tracks,
                 "fall_events": falls,
-                "learning_left": learning_left  # <--- Ajoute cette ligne !
+                "learning_left": learning_left,
+                "elevation_profile": np.max(self.latest_msg[0], axis=0) 
             })

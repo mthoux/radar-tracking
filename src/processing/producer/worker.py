@@ -100,6 +100,7 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
             # Compute CFAR
             dets = process_frame(range_fft_subset, cfg_cfar)
 
+            # MUST BE CONSISTENT WITH CONFIG
             phi_s, phi_e, phi_res = -60, 60, 1      # Azimut de -60° à +60° par pas de 1°
             theta_s, theta_e, theta_res = -20, 20, 1 # Élévation de -20° à +20° par pas de 1°
 
@@ -111,11 +112,10 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
             # Compute beamforming
             sph_pwr = beamform_3d(data_for_3d_bf, phi_s, phi_e, phi_res, theta_s, theta_e, theta_res, x_locs[:, np.newaxis], z_locs[:, np.newaxis], r_local_idxs, cfg_radar)[0]
             #bf_output = beamform_2d_s(range_fft_subset, cfg_radar, x_locs, dets)
-            bf_output = np.max(sph_pwr, axis=1)
 
             # Send the data to the queue
             try:
-                q.put_nowait(("bev", (bf_output)))
+                q.put_nowait(("bf", (sph_pwr)))
             except queue.Full:
                 continue
 
