@@ -63,20 +63,30 @@ class Fuser:
         # This prevents costly trigonometric calculations inside the processing loop.
         
         # Radar 1 Mapping
-        phi1 = np.arctan2((self.Y - self.y1).ravel(), (self.X - self.x1).ravel()) - self.angle_1
-        r1 = np.hypot(self.X.ravel() - self.x1, self.Y.ravel() - self.y1)
+        dx1 = (self.X - self.x1).ravel()
+        dy1 = (self.Y - self.y1).ravel()
+        dx1_local =  dx1 * np.cos(self.angle_1) + dy1 * np.sin(self.angle_1)
+        dy1_local = -dx1 * np.sin(self.angle_1) + dy1 * np.cos(self.angle_1)
+        phi1 = np.arctan2(dx1_local, dy1_local)
+        r1   = np.hypot(dx1, dy1)
         self.pts1 = np.column_stack((phi1, r1))
 
         # Radar 2 Mapping
-        phi2 = np.arctan2((self.Y - self.y2).ravel(), (self.X - self.x2).ravel()) - self.angle_2
-        r2 = np.hypot(self.X.ravel() - self.x2, self.Y.ravel() - self.y2)
+        dx2 = (self.X - self.x2).ravel()
+        dy2 = (self.Y - self.y2).ravel()
+        dx2_local =  dx2 * np.cos(self.angle_2) + dy2 * np.sin(self.angle_2)
+        dy2_local = -dx2 * np.sin(self.angle_2) + dy2 * np.cos(self.angle_2)
+        phi2 = np.arctan2(dx2_local, dy2_local)
+        r2   = np.hypot(dx2, dy2)
         self.pts2 = np.column_stack((phi2, r2))
 
         # Back-sampling Mapping (Cartesian -> Polar display)
         PHI_MESH, R_MESH = np.meshgrid(self.phi, self.r_idxs, indexing='ij')
+        x_back = R_MESH * np.sin(PHI_MESH - np.pi/2)
+        y_back = R_MESH * np.cos(PHI_MESH - np.pi/2)
         self.pts_back = np.column_stack((
-            (R_MESH * np.sin(PHI_MESH)).ravel(), # y-coord on cartesian grid
-            (R_MESH * np.cos(PHI_MESH)).ravel()  # x-coord on cartesian grid
+            y_back.ravel(),  # y_grid axis
+            x_back.ravel()   # x_grid axis
         ))
         self.POLAR_SHAPE = PHI_MESH.shape
 
@@ -95,7 +105,10 @@ class Fuser:
 
         # Dans le __init__
         self.smooth_heatmap = None
-        self.alpha = 0.5  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux)
+        fps = 10  # Valeur qu'on a observée, peut être ajustée dynamiquement si besoin
+        sec = 0.2 #Combien de secondes pour que le lissage "oublie" une ancienne frame
+
+        self.alpha = 1/ (fps * sec)  # = 0,5 1Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux)
 
     def _get_latest_from_queues(self):
         """
@@ -133,8 +146,21 @@ class Fuser:
             interp1 = RegularGridInterpolator((self.phi, self.r_idxs), bf_1, bounds_error=False, fill_value=0)
             interp2 = RegularGridInterpolator((self.phi, self.r_idxs), bf_2, bounds_error=False, fill_value=0)
 
-            # Map both radars to the same Cartesian space and fuse using Maximum Intensity Projection
-            Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
+            v1 = interp1(self.pts1)
+            v2 = interp2(self.pts2)
+
+            both_see   = (v1 > self.snr_threshold) & (v2 > self.snr_threshold)
+            either_see = (v1 > self.snr_threshold) | (v2 > self.snr_threshold)
+
+            Z_cart = np.where(
+                both_see,
+                np.maximum(v1, v2),          # both agree → full confidence
+                np.where(
+                    either_see,
+                    0.8 * np.maximum(v1, v2), # only one sees it → half confidence
+                    0.0                        # neither → suppress
+                )
+            ).reshape(self.X.shape)
 
             # --- PERSISTENCE (Lissage temporel) ---
             if self.smooth_heatmap is None:
