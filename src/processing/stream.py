@@ -84,17 +84,23 @@ def main():
     args = parser.parse_args()
 
     cfg_radar = {
-        "nb_radar" : 1,
+        "nb_radar" : 2,
         "range_res": 0.044,
         "range_idx": np.arange(0, 100, 1),
         "phi": np.deg2rad(np.arange(0, 180, 1)),
         "width": 100,
-        "offset_x_1": +int(10 / (0.044 * 100)), #cm to idx : int(cm / (range_res_m * 100))
-        "offset_x_2": -int(10 / (0.044 * 100)),
+
+
+        # 1.35m baseline → each radar is 0.675m from center
+        # 0.675m / 0.044 = ~15.3 bins
+        "offset_x_1": -int(0.675 / 0.044),  # = -15  (LEFT radar)
+        "offset_x_2": +int(0.675 / 0.044),  # = +15  (RIGHT radar)
         "offset_y_1": 0.0,
         "offset_y_2": 0.0,
-        "angle_1": np.deg2rad(0),
-        "angle_2": np.deg2rad(0),
+
+        # Toe-in angles: R1 points right (+30°), R2 points left (-30°) 
+        "angle_1": np.deg2rad(+30),
+        "angle_2": np.deg2rad(-30),
         "n_radar": 2,
         "num_tx": 3,
         "num_rx": 4,
