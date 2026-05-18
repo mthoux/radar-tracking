@@ -1,6 +1,11 @@
 import numpy as np
-import queue
 import time
+from collections import deque
+from typing import Dict, Set, List, Tuple, Optional
+
+# Physical height associated with each beamforming level (metres).
+# Must match ELEVATION_HEIGHTS_M in worker.py.
+LEVEL_HEIGHTS_M: Tuple[float, ...] = (0.3, 0.9, 1.5)
 
 class FallDetector:
     """
@@ -12,21 +17,110 @@ class FallDetector:
     les pertes de détection temporaires dues au bruit radar.
     """
 
-    def __init__(self, fall_threshold_frames=15, valid_zone=(-30, 30, 5, 95)):
+    def __init__(
+        self, 
+        fall_threshold_frames=15, 
+        vertical_speed_threshold: float = 0.03,
+        elevation_heights: Tuple[float, ...] = LEVEL_HEIGHTS_M,
+        centroid_history_len: int = 30,
+        valid_zone=(-30, 30, 5, 95)
+    ):
         self.fall_threshold = fall_threshold_frames
+        self.vert_speed_thresh       = vertical_speed_threshold
+        self.heights                 = np.array(elevation_heights, dtype=float)  # (3,)
+        self.centroid_history_len    = centroid_history_len
         self.valid_zone = valid_zone  # (x_min, x_max, y_min, y_max)
 
-        # {track_id: nb de frames consécutives sans détection}
-        self.miss_counter: dict[int, int] = {}
+        # {track_id: int}  consecutive-miss counter
+        self.miss_counter: Dict[int, int] = {}
+ 
+        # {track_id: deque of float}  height-centroid history (m)
+        self.centroid_history: Dict[int, deque] = {}
+ 
+        # {track_id: float}  peak downward speed seen for this track (m/frame)
+        self.peak_downward_speed: Dict[int, float] = {}
+ 
+        # IDs for which an alert was already emitted
+        self.alerted_ids: Set[int] = set()
+ 
+        # Full event log
+        self.fall_events: List[dict] = []
+ 
+        # Latest known 2-D position  {uid: (x, y)}
+        self.last_positions: Dict[int, tuple] = {}
 
-        # IDs pour lesquels une alerte a déjà été émise (évite les doublons)
-        self.alerted_ids: set[int] = set()
-
-        # Historique pour callback externe ou log
-        self.fall_events: list[dict] = []
-
-        # {uid: (x, y)}
-        self.last_positions: dict[int, tuple] = {}  
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+    
+    def update_height_centroids(
+        self,
+        track_id: int,
+        track_pos: Tuple[float, float],
+        bev_levels: List[np.ndarray],
+        phi: np.ndarray,
+        r_idxs: np.ndarray,
+        radius_m: float = 1.5,
+    ) -> Optional[float]:
+        """
+        Compute the power-weighted height centroid for one track and store it.
+ 
+        For each height level k, we integrate the BEV power inside a disk of
+        ``radius_m`` metres around the track's (x, y) position.  The centroid
+        is then:
+            h_centroid = Σ_k  heights[k] * P_k  /  Σ_k P_k
+ 
+        Parameters
+        ----------
+        track_id  : int
+        track_pos : (x, y) in the same Cartesian frame as r_idxs / phi
+        bev_levels: list of 3 normalised BEV arrays, each (num_phi, num_range)
+        phi       : azimuth angles (rad), shape (num_phi,)
+        r_idxs    : range indices, shape (num_range,)
+        radius_m  : integration radius around the track position (index units)
+ 
+        Returns
+        -------
+        centroid : float (metres) or None if no power found near the track
+        """
+        tx, ty = track_pos
+ 
+        # Build Cartesian coordinate grids once per call
+        # BEV axes: rows = phi, cols = r_idxs
+        PHI, R = np.meshgrid(phi, r_idxs, indexing='ij')     # (num_phi, num_range)
+        X_grid = R * np.sin(PHI)   # azimuth → x
+        Y_grid = R * np.cos(PHI)   # range   → y
+ 
+        # Mask: pixels within radius_m of the track
+        dist2 = (X_grid - tx)**2 + (Y_grid - ty)**2
+        mask  = dist2 <= radius_m**2  # (num_phi, num_range) bool
+ 
+        if not mask.any():
+            return None
+ 
+        level_powers = np.array([
+            float(np.sum(bev[mask])) for bev in bev_levels
+        ])                                                      # (3,)
+ 
+        total_power = level_powers.sum()
+        if total_power < 1e-12:
+            return None
+ 
+        centroid = float(np.dot(self.heights, level_powers) / total_power)
+ 
+        # Store in history
+        if track_id not in self.centroid_history:
+            self.centroid_history[track_id] = deque(maxlen=self.centroid_history_len)
+        self.centroid_history[track_id].append(centroid)
+ 
+        # Update peak downward speed
+        hist = self.centroid_history[track_id]
+        if len(hist) >= 2:
+            # Finite-difference estimate: positive = downward (height decreasing)
+            speeds = [hist[i-1] - hist[i] for i in range(1, len(hist))]
+            self.peak_downward_speed[track_id] = max(speeds)
+ 
+        return centroid
 
     def update(self, active_track_ids: set[int]) -> list[dict]:
         """
@@ -45,11 +139,17 @@ class FallDetector:
         # Remettre à zéro les tracks qui sont revenues
         for tid in active_track_ids:
             self.miss_counter[tid] = 0
+            # Clear alert so a re-fall can be detected after recovery
+            if tid in self.alerted_ids and self.miss_counter.get(tid, 0) == 0:
+                self.alerted_ids.discard(tid)
 
         # Nettoyer les tracks vraiment disparues (> seuil) et alerter
         x_min, x_max, y_min, y_max = self.valid_zone
         for tid, count in list(self.miss_counter.items()):
+
             if count >= self.fall_threshold and tid not in self.alerted_ids:
+
+                 # ── Boundary check ───────────────────────────────────────────
                 pos = self.last_positions.get(tid)
                 if pos is None:
                     continue
@@ -59,9 +159,24 @@ class FallDetector:
                     del self.miss_counter[tid]
                     continue
                 
+                # ── Vertical-speed gate ──────────────────────────────────────
+                peak_speed = self.peak_downward_speed.get(tid, 0.0)
+                if self.vert_speed_thresh > 0 and peak_speed < self.vert_speed_thresh:
+                    # Track disappeared but did NOT show a fast downward motion
+                    # (e.g. walked out of coverage quietly) → skip
+                    print(
+                        f"[FALL SKIPPED] track_id={tid} disappeared but "
+                        f"peak_downward_speed={peak_speed:.4f} < "
+                        f"threshold={self.vert_speed_thresh:.4f}"
+                    )
+                    # Clean up so we don't keep evaluating
+                    del self.miss_counter[tid]
+                    continue
+
                 event = {
                     "track_id":      tid,
                     "missing_frames": count,
+                    "peak_downward_speed": peak_speed,
                     "timestamp":      time.time(),
                 }
                 new_falls.append(event)
@@ -69,12 +184,10 @@ class FallDetector:
                 self.alerted_ids.add(tid)
                 print(f"[FALL DETECTED] track_id={tid} absent depuis {count} frames")
 
-            elif count == 0 and tid in self.alerted_ids:
-                # Track revenue — réinitialiser l'alerte
-                self.alerted_ids.discard(tid)
-
             # Supprimer les tracks disparues depuis longtemps pour éviter la fuite mémoire
             if count > self.fall_threshold: #+ 30:
-                del self.miss_counter[tid]
+                self.miss_counter.pop(tid, None)
+                self.centroid_history.pop(tid, None)
+                self.peak_downward_speed.pop(tid, None)
 
         return new_falls

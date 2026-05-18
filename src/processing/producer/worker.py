@@ -2,8 +2,16 @@ import numpy as np
 import queue
 
 from src.mmwave.dataloader.adc import DCA1000
-from src.processing.producer.worker_functions import process_frame, beamform_2d_s
+from src.processing.producer.worker_functions import (
+    process_frame,
+    beamform_2d_s,
+    beamform_multilevel,
+)
 from src.processing.utils.utils import get_ant_pos_2d
+
+# Height levels (metres) for the three elevation beamformings.
+ELEVATION_HEIGHTS_M = (0.3, 0.9, 1.5)  # floor / waist / head
+ 
 
 def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip):
     """
@@ -72,7 +80,6 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
 
             # Apply FFT along the range dimension
             range_fft = np.fft.fft(beat_freq_data, axis=-1)
-        
             range_fft_subset = range_fft[:, :, r_idxs]
 
             # 3. BACKGROUND REMOVAL
@@ -102,9 +109,18 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
             # Compute beamforming
             bf_output = beamform_2d_s(range_fft_subset, cfg_radar, x_locs[:,0], dets)
 
+             # ── Multi-level BEV (3 elevation-steered beamformings) ────────────
+            bev_levels = beamform_multilevel(
+                range_fft_subset,
+                cfg_radar,
+                x_locs[:, 0],
+                dets,
+                heights_m=ELEVATION_HEIGHTS_M,
+            )
+
             # Send the data to the queue
             try:
-                q.put_nowait(("bev", (bf_output)))
+                q.put_nowait(("bev", (bf_output, bev_levels)))
             except queue.Full:
                 continue
 
