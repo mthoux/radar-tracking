@@ -93,14 +93,14 @@ def main():
 
         # 1.35m baseline → each radar is 0.675m from center
         # 0.675m / 0.044 = ~15.3 bins
-        "offset_x_1": -int(0.675 / 0.044),  # = -15  (LEFT radar)
-        "offset_x_2": +int(0.675 / 0.044),  # = +15  (RIGHT radar)
+        "offset_x_1": +int(0.675 / 0.044),  # = +15  (Right radar)
+        "offset_x_2": -int(0.675 / 0.044),  # = -15  (Left radar)
         "offset_y_1": 0.0,
         "offset_y_2": 0.0,
 
         # Toe-in angles: R1 points right (+30°), R2 points left (-30°) 
-        "angle_1": np.deg2rad(+30),
-        "angle_2": np.deg2rad(-30),
+        "angle_1": np.deg2rad(-30),
+        "angle_2": np.deg2rad(+30),
         "n_radar": 2,
         "num_tx": 3,
         "num_rx": 4,
