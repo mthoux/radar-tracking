@@ -182,7 +182,7 @@ class FallDetector:
                 new_falls.append(event)
                 self.fall_events.append(event)
                 self.alerted_ids.add(tid)
-                print(f"[FALL DETECTED] track_id={tid} absent depuis {count} frames")
+                print(f"[FALL DETECTED] track_id={tid} absent depuis {count} frames avec vert_speed de {peak_speed}")
 
             # Supprimer les tracks disparues depuis longtemps pour éviter la fuite mémoire
             if count > self.fall_threshold: #+ 30:
