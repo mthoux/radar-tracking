@@ -10,7 +10,7 @@ from src.processing.producer.worker_functions import (
 from src.processing.utils.utils import get_ant_pos_2d
 
 # Height levels (metres) for the three elevation beamformings.
-ELEVATION_HEIGHTS_M = (0.3, 0.9, 1.5)  # floor / waist / head
+ELEVATION_HEIGHTS_M = (-0.5, -0.1, 0.5)  # 0 is horizontal
  
 
 def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip):

@@ -5,7 +5,7 @@ from typing import Dict, Set, List, Tuple, Optional
 
 # Physical height associated with each beamforming level (metres).
 # Must match ELEVATION_HEIGHTS_M in worker.py.
-LEVEL_HEIGHTS_M: Tuple[float, ...] = (0.3, 0.9, 1.5)
+LEVEL_HEIGHTS_M: Tuple[float, ...] = (-0.5, -0.1, 0.5)
 
 class FallDetector:
     """

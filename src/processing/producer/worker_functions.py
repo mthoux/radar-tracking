@@ -115,7 +115,7 @@ def beamform_2d_elevation(beat_freq_data, radar_params, x_locs, dets,
  
  
 def beamform_multilevel(beat_freq_data, radar_params, x_locs, dets,
-                        heights_m=(0.3, 0.9, 1.5)):
+                        heights_m=(-0.5, -0.1, 0.5)):
     """
     Run one beamforming pass per height level and return a list of BEV maps.
  
