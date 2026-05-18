@@ -134,7 +134,8 @@ class Fuser:
             interp2 = RegularGridInterpolator((self.phi, self.r_idxs), bf_2, bounds_error=False, fill_value=0)
 
             # Map both radars to the same Cartesian space and fuse using Maximum Intensity Projection
-            Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
+            #Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
+            Z_cart = (interp1(self.pts1) + interp2(self.pts2)).reshape(self.X.shape) / 2.0
 
             # --- PERSISTENCE (Lissage temporel) ---
             if self.smooth_heatmap is None:
@@ -167,15 +168,23 @@ class Fuser:
             to_plot = to_plot ** 8
 
             # --- GTRACKING ---
-            # Only generate detections for points above the SNR threshold
+            # 1. On trouve tous les points au-dessus du seuil
             indices = np.argwhere(to_plot >= self.snr_threshold)
-            
-            # Optimization: limit detections to avoid saturating the tracker
+
+            if len(indices) > 0:
+                # 2. On récupère les valeurs de SNR pour ces indices
+                snr_values = to_plot[indices[:, 0], indices[:, 1]]
+                
+                # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
+                sorted_idx = np.argsort(snr_values)[::-1]
+                indices = indices[sorted_idx]
+
+            # 4. Optimization: On garde les 200 meilleurs pour éviter de saturer le tracker
             detections = [
                 Detection(r=self.r_idxs[i], az=self.phi[j], v=0, snr=to_plot[j, i])
-                for j, i in indices[:200] # Caps at 200 points
+                for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
             ]
-            
+
             gtrack_output = self.tracker.step(detections)
             tracks = gtrack_output.get('tracks', [])
 
