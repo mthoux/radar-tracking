@@ -20,7 +20,7 @@ class FallDetector:
     def __init__(
         self, 
         fall_threshold_frames=15, 
-        vertical_speed_threshold: float = 0.03,
+        vertical_speed_threshold: float = 0.17,
         elevation_heights: Tuple[float, ...] = LEVEL_HEIGHTS_M,
         centroid_history_len: int = 30,
         valid_zone=(-30, 30, 5, 95)
@@ -146,7 +146,7 @@ class FallDetector:
         # Nettoyer les tracks vraiment disparues (> seuil) et alerter
         x_min, x_max, y_min, y_max = self.valid_zone
         for tid, count in list(self.miss_counter.items()):
-
+            print(self.peak_downward_speed.get(tid, 0.0))
             if count >= self.fall_threshold and tid not in self.alerted_ids:
 
                  # ── Boundary check ───────────────────────────────────────────
