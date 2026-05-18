@@ -10,7 +10,7 @@ from src.processing.producer.worker_functions import (
 from src.processing.utils.utils import get_ant_pos_2d
 
 # Height levels (metres) for the three elevation beamformings.
-ELEVATION_HEIGHTS_M = (-0.5, -0.1, 0.5)  # 0 is horizontal
+ELEVATION_HEIGHTS_M = (-0.7, 0.0, 0.6)  # 0 is horizontal
  
 
 def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip):
@@ -103,6 +103,10 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
             range_fft_subset[:, :, 0:10] = 0
             range_fft_subset[:, :, 120:150] = 0
 
+            # Shape moves from: (num_antennas, chirp_loops, range_idx)
+            # To Range-Doppler Cube: (num_antennas, doppler_bins, range_idx)
+            rd_cube = np.fft.fft(range_fft_subset, axis=1)
+
             # Compute CFAR
             dets = process_frame(range_fft_subset, cfg_cfar)
 
@@ -111,7 +115,7 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
 
              # ── Multi-level BEV (3 elevation-steered beamformings) ────────────
             bev_levels = beamform_multilevel(
-                range_fft_subset,
+                rd_cube,
                 cfg_radar,
                 x_locs[:, 0],
                 dets,
