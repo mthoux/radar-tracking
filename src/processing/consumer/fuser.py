@@ -62,31 +62,38 @@ class Fuser:
         # PRE-COMPUTATION: Mapping Polar coordinates to Cartesian points once.
         # This prevents costly trigonometric calculations inside the processing loop.
         
-        # Radar 1 Mapping
+        # Radar 1
         dx1 = (self.X - self.x1).ravel()
         dy1 = (self.Y - self.y1).ravel()
+
+        # Rotate into radar local frame
         dx1_local =  dx1 * np.cos(self.angle_1) + dy1 * np.sin(self.angle_1)
         dy1_local = -dx1 * np.sin(self.angle_1) + dy1 * np.cos(self.angle_1)
-        phi1 = np.arctan2(dx1_local, dy1_local)
+
+        phi1 = np.arctan2(dy1_local, dx1_local)  # ← y first, x second, matches your phi convention
         r1   = np.hypot(dx1, dy1)
         self.pts1 = np.column_stack((phi1, r1))
 
-        # Radar 2 Mapping
+        # Radar 2
         dx2 = (self.X - self.x2).ravel()
         dy2 = (self.Y - self.y2).ravel()
+
         dx2_local =  dx2 * np.cos(self.angle_2) + dy2 * np.sin(self.angle_2)
         dy2_local = -dx2 * np.sin(self.angle_2) + dy2 * np.cos(self.angle_2)
-        phi2 = np.arctan2(dx2_local, dy2_local)
+
+        phi2 = np.arctan2(dy2_local, dx2_local)  # ← same
         r2   = np.hypot(dx2, dy2)
         self.pts2 = np.column_stack((phi2, r2))
 
         # Back-sampling Mapping (Cartesian -> Polar display)
         PHI_MESH, R_MESH = np.meshgrid(self.phi, self.r_idxs, indexing='ij')
-        x_back = R_MESH * np.sin(PHI_MESH - np.pi/2)
-        y_back = R_MESH * np.cos(PHI_MESH - np.pi/2)
+        # phi=90° → cos(90°)=0, sin(90°)=1
+        x_back = R_MESH * np.cos(PHI_MESH)  # X component
+        y_back = R_MESH * np.sin(PHI_MESH)  # Y component
+
         self.pts_back = np.column_stack((
-            y_back.ravel(),  # y_grid axis
-            x_back.ravel()   # x_grid axis
+            y_back.ravel(),  # y_grid axis first
+            x_back.ravel()   # x_grid axis second
         ))
         self.POLAR_SHAPE = PHI_MESH.shape
 
