@@ -1,12 +1,23 @@
 from src.mmwave.mmwavecapture.radar import Radar
 from src.mmwave.mmwavecapture import dca1000
-
+import argparse
 from pathlib import Path
 
 def main():
     """
     Main function to start the AWR1843BOOST and DCA1000EVM with custom configuration.
     """
+
+    parser = argparse.ArgumentParser(description="Start radar 2 with dynamic USB ports.")
+    parser.add_argument("-port1", "--config_port", required=True, help="CLI/Configuration port")
+    parser.add_argument("-port2", "--data_port", required=True, help="Data port")
+    args = parser.parse_args()
+
+    config_port = args.config_port.replace("tty.", "cu.")
+    data_port = args.data_port.replace("tty.", "cu.")
+
+    print(f"Starting radar 2 with config_port={config_port} and data_port={data_port}...")
+
 
     # Specific ethernet configuration for this radar
     dca_radar_2_config = {
@@ -32,18 +43,17 @@ def main():
     }
 
     # Initialize the DCA1000EVM
-    print("Starting radar 2...")
     dca = dca1000.DCA1000(config=dca_radar_2_config)
 
     # Initialize the radar
     ROOT_DIR = Path(__file__).resolve().parents[3]
     cfg_file = ROOT_DIR / "configs" / "profile_super.cfg"   
     radar = Radar(
-        config_port="/dev/tty.usbmodemR20910491",
-        #config_port="/dev/tty.usbmodem13",
+        #config_port="/dev/tty.usbmodemR20910491",
+        config_port=config_port,
         config_baudrate=115200,
-        data_port="/dev/tty.usbmodemR20910494",
-        #data_port="/dev/tty.usbmodem14",
+        #data_port="/dev/tty.usbmodemR20910494",
+        data_port=data_port,
         data_baudrate=921600,
         config_filename=cfg_file,
         initialize_connection_and_radar=True,
