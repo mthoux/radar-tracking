@@ -148,7 +148,7 @@ if [ "$1" == "-init" ]; then
                 echo "🚨 [Radar 1] Critical failure on all port combinations. Halting."
                 echo "💡 TIP: If you launched too early after power up, try to launch again."
                 echo "   It may be that the radar connections were not fully set up yet."
-                echo "   Also make sure to execute this script in terminal not is VS code
+                echo "   Also make sure to execute this script in terminal not is VS code"
                 echo "----------------------------------------------------------------------"
                 exit 1
             fi
