@@ -145,7 +145,7 @@ def beamform_multilevel(beat_freq_data, radar_params, x_locs, dets):
     real_h = tuple(h - heights_m[1] for h in heights_m) # Elevation heights in the radar referential
     for dh in real_h:
         # Clamp to avoid arctan(inf) for very short ranges
-        el_angle = np.arctan2(dh / max(r_mid_m, 0.1))
+        el_angle = np.arctan2(dh, max(r_mid_m, 0.1))
         bev = beamform_2d_elevation(
             beat_freq_data, radar_params, x_locs, dets, el_angle
         )

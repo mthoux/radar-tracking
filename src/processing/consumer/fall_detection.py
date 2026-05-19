@@ -148,7 +148,9 @@ class FallDetector:
         # Nettoyer les tracks vraiment disparues (> seuil) et alerter
         x_min, x_max, y_min, y_max = self.valid_zone
         for tid, count in list(self.miss_counter.items()):
-            print(self.peak_downward_speed.get(tid, 0.0))
+
+            print(self.recent_downward_speed.get(tid, 0.0))
+
             if count >= self.fall_threshold and tid not in self.alerted_ids:
 
                  # ── Boundary check ───────────────────────────────────────────
@@ -200,6 +202,6 @@ class FallDetector:
             if count > self.fall_threshold: #+ 30:
                 self.miss_counter.pop(tid, None)
                 self.centroid_history.pop(tid, None)
-                self.peak_downward_speed.pop(tid, None)
+                self.recent_downward_speed.pop(tid, None)
 
         return new_falls
