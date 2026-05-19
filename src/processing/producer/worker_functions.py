@@ -114,7 +114,7 @@ def beamform_2d_elevation(beat_freq_data, radar_params, x_locs, dets,
     return sph_pwr
  
  
-def beamform_multilevel(beat_freq_data, radar_params, x_locs, dets, heights_m):
+def beamform_multilevel(beat_freq_data, radar_params, x_locs, dets):
     """
     Run one beamforming pass per height level and return a list of BEV maps.
  
@@ -136,17 +136,16 @@ def beamform_multilevel(beat_freq_data, radar_params, x_locs, dets, heights_m):
     """
     range_res  = radar_params["range_res"]
     r_idxs     = radar_params["range_idx"]
+    heights_m  = radar_params["elevation_heights"]
  
     # Representative range for elevation angle computation (mid of window, in m)
     r_mid_m = float(np.median(r_idxs)) * range_res  # metres
  
     bev_levels = []
-    for h in heights_m:
-        # Prevent true zero to protect against underflow/speed calculation anomalies downstream
-        h_safe = 1e-5 if h == 0.0 else h
-
+    real_h = tuple(h - heights_m[1] for h in heights_m) # Elevation heights in the radar referential
+    for dh in real_h:
         # Clamp to avoid arctan(inf) for very short ranges
-        el_angle = np.arctan(h_safe / max(r_mid_m, 0.1))
+        el_angle = np.arctan2(dh / max(r_mid_m, 0.1))
         bev = beamform_2d_elevation(
             beat_freq_data, radar_params, x_locs, dets, el_angle
         )

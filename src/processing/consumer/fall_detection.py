@@ -3,9 +3,10 @@ import time
 from collections import deque
 from typing import Dict, Set, List, Tuple, Optional
 
-# Physical height associated with each beamforming level (metres).
-# Must match ELEVATION_HEIGHTS_M in worker.py.
-LEVEL_HEIGHTS_M: Tuple[float, ...] = (-0.5, -0.1, 0.5)
+# Number of frames to look back just before disappearance (and the minimum too)
+RECENT_WINDOW_FOR_SPEED = 10
+# Minimum variance of the centroid history to consider speed reliable.
+MIN_CENTROID_VARIANCE = 0.05  # m²
 
 class FallDetector:
     """
@@ -19,11 +20,11 @@ class FallDetector:
 
     def __init__(
         self, 
-        fall_threshold_frames=15, 
-        vertical_speed_threshold: float = 0.17,
-        elevation_heights: Tuple[float, ...] = LEVEL_HEIGHTS_M,
+        fall_threshold_frames=20, 
+        vertical_speed_threshold: float = 0.03,    # tune: ~3cm/frame downward
+        elevation_heights: Tuple[float, ...] = (0.0, 0.7, 1.4),
         centroid_history_len: int = 30,
-        valid_zone=(-30, 30, 5, 95)
+        valid_zone=(-25, 25, 5, 95)
     ):
         self.fall_threshold = fall_threshold_frames
         self.vert_speed_thresh       = vertical_speed_threshold
@@ -38,7 +39,7 @@ class FallDetector:
         self.centroid_history: Dict[int, deque] = {}
  
         # {track_id: float}  peak downward speed seen for this track (m/frame)
-        self.peak_downward_speed: Dict[int, float] = {}
+        self.recent_downward_speed: Dict[int, float] = {}
  
         # IDs for which an alert was already emitted
         self.alerted_ids: Set[int] = set()
@@ -113,12 +114,13 @@ class FallDetector:
             self.centroid_history[track_id] = deque(maxlen=self.centroid_history_len)
         self.centroid_history[track_id].append(centroid)
  
-        # Update peak downward speed
+        # Update peak downward speed (by only looking at the most recent window)
         hist = self.centroid_history[track_id]
-        if len(hist) >= 2:
+        recent = list(hist)[-RECENT_WINDOW_FOR_SPEED:]
+        if len(recent) >= 3:
             # Finite-difference estimate: positive = downward (height decreasing)
-            speeds = [hist[i-1] - hist[i] for i in range(1, len(hist))]
-            self.peak_downward_speed[track_id] = max(speeds)
+            speeds = [recent[i-1] - recent[i] for i in range(1, len(recent))]
+            self.recent_downward_speed[track_id] = max(speeds)
  
         return centroid
 
@@ -160,19 +162,29 @@ class FallDetector:
                     continue
                 
                 # ── Vertical-speed gate ──────────────────────────────────────
-                peak_speed = self.peak_downward_speed.get(tid, 0.0)
-                if self.vert_speed_thresh > 0 and peak_speed < self.vert_speed_thresh:
-                    # Track disappeared but did NOT show a fast downward motion
-                    # (e.g. walked out of coverage quietly) → skip
-                    print(
-                        f"[FALL SKIPPED] track_id={tid} disappeared but "
-                        f"peak_downward_speed={peak_speed:.4f} < "
-                        f"threshold={self.vert_speed_thresh:.4f}"
-                    )
-                    # Clean up so we don't keep evaluating
+                peak_speed = self.recent_downward_speed.get(tid, 0.0)
+                history_len = len(self.centroid_history.get(tid, []))
+                recent = list(self.centroid_history.get(tid, []))[-RECENT_WINDOW_FOR_SPEED:]
+                centroid_variance = np.var(recent) if len(recent) >= RECENT_WINDOW_FOR_SPEED else 0.0
+
+                # Confirm fall:
+                # Not enough history → trust disappearance alone
+                if history_len < RECENT_WINDOW_FOR_SPEED:
+                    print(f"[FALL SKIPPED] track_id={tid} not enough history ({history_len} frames) → ghost detection")
                     del self.miss_counter[tid]
                     continue
 
+                # Instant disappearance without enough time to compute vertical speed (very high speed)
+                elif centroid_variance < MIN_CENTROID_VARIANCE:
+                    print(f"[FALL WARNING] track_id={tid} low variance ({centroid_variance:.4f}) → instant fall")
+                        
+                # Track disappeared but did NOT show a fast downward motion
+                elif peak_speed < self.vert_speed_thresh:
+                    print(f"[FALL SKIPPED] track_id={tid} peak_speed={peak_speed:.4f} < threshold={self.vert_speed_thresh:.4f}")
+                    del self.miss_counter[tid]
+                    continue
+                
+                # Fall register
                 event = {
                     "track_id":      tid,
                     "missing_frames": count,

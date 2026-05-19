@@ -104,7 +104,8 @@ def main():
         "c": 3e8,
         "lm": 3e8 / 77e9, # c / f
         "slope": 70.150e12,
-        "do_bg_removal": args.bg_removal
+        "do_bg_removal": args.bg_removal,
+        "elevation_heights": (0.0, 0.7, 1.4) # Hauteurs absolues depuis referentiel de la chambre
     }
 
     cfg_network = {

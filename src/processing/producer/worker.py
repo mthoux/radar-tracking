@@ -9,9 +9,6 @@ from src.processing.producer.worker_functions import (
 )
 from src.processing.utils.utils import get_ant_pos_2d
 
-# Height levels (metres) for the three elevation beamformings.
-ELEVATION_HEIGHTS_M = (-0.7, 0.0, 0.6)  # 0 is horizontal
- 
 
 def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip):
     """
@@ -119,7 +116,6 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
                 cfg_radar,
                 x_locs[:, 0],
                 dets,
-                heights_m=ELEVATION_HEIGHTS_M,
             )
 
             # Send the data to the queue

@@ -11,6 +11,7 @@ from src.processing.consumer.gtrack.config import Detection
 from src.processing.consumer.gtrack.module import GTrackModule2D
 from .fall_detection import FallDetector
 
+
 # Global configuration to avoid COM initialization issues on some systems
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
@@ -81,10 +82,9 @@ class Fuser:
         self.POLAR_SHAPE = PHI_MESH.shape
 
         # Initialisation du détecteur de chute
+        el_h = cfg_radar["elevation_heights"]
         self.fall_detector = FallDetector(
-            fall_threshold_frames=20,
-            vertical_speed_threshold=0.03,   # tune: ~3cm/frame downward
-            elevation_heights=(0.3, 0.9, 1.5),
+            elevation_heights=el_h,
         )
         self.last_fps = 20.0 # Valeur par défaut pour le seuil initial
 
