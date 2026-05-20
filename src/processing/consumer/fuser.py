@@ -231,11 +231,7 @@ class Fuser:
                     print("❌ Connexion Arduino perdue.")
 
             # --- CALCUL DES PROFILS ---
-            # Puissance vs Distance (déjà présent)
             range_profile = np.max(to_plot, axis=0)
-
-            # Puissance vs Angle (Nouveau)
-            # On prend le max sur l'axe des distances (axis 1) pour chaque angle
             azimuth_profile = np.max(to_plot, axis=1)
 
             # --- DATA OUTPUT ---
@@ -244,12 +240,14 @@ class Fuser:
                 if not self.q_out.full():
                     self.q_out.put_nowait({
                         "heatmap": to_plot,
-                        "range_profile": range_profile, # Nouvelle donnée
-                        "azimuth_profile": azimuth_profile,
                         "tracks": tracks,
                         "fall_events": fall_events, # On envoie les nouveaux événements
                         "all_falls": self.fall_detector.fall_events, # Historique complet
-                        "learning_left": self.CLUTTER_LEARN_LIMIT - len(self.clutter_frames)
+                        "learning_left": self.CLUTTER_LEARN_LIMIT - len(self.clutter_frames),
+                        "profile": {
+                            "range": range_profile,
+                            "azimuth": azimuth_profile
+                        }
                     })
             except:
                 pass # Queue full, skip frame to maintain real-time

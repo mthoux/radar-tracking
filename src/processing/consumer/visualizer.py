@@ -80,8 +80,8 @@ class Visualizer(ShowBase):
         
         self.ax_1d.set_ylim(0, 1.1)
         self.ax_1d.set_xlim(self.r_metres[0], self.r_metres[-1]) # Calage parfait de l'axe
-        self.ax_1d.set_title(f"Profil de Puissance (Res: {res*100:.1f}cm)")
-        self.ax_1d.set_xlabel("Distance réelle (m)")
+        self.ax_1d.set_title(f"Power profil for distance (Res: {res*100:.1f}cm)")
+        self.ax_1d.set_xlabel("Real distance (m)")
         self.ax_1d.grid(True, alpha=0.3)
 
         # 4. Profil Azimutal (Puissance vs Angle)
@@ -95,8 +95,8 @@ class Visualizer(ShowBase):
 
         # Mise à jour auto des limites
         self.ax_azimuth.set_xlim(self.phi_deg[0], self.phi_deg[-1]) 
-        self.ax_azimuth.set_title("Profil de Puissance par Angle (Centré)")
-        self.ax_azimuth.set_xlabel("Angle (degrés)")
+        self.ax_azimuth.set_title("Power profil for azimuth (Centered)")
+        self.ax_azimuth.set_xlabel("Phi (degrés)")
 
         # Artists and UI elements
         self.last_artists = []
@@ -136,11 +136,11 @@ class Visualizer(ShowBase):
 
             # Update Graphique 1D ---
             if "range_profile" in data:
-                self.line_1d.set_ydata(data["range_profile"])
+                self.line_1d.set_ydata(data["profile"]["range"])
 
             # Mise à jour du profil en angle (Y)
             if "azimuth_profile" in data:
-                self.line_azimuth.set_ydata(data["azimuth_profile"])
+                self.line_azimuth.set_ydata(data["profile"]["azimuth"])
 
             # 2. Update Title based on learning state
             if self.do_bg_removal:
