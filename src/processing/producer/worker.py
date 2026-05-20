@@ -100,10 +100,6 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
             range_fft_subset[:, :, 0:10] = 0
             range_fft_subset[:, :, 120:150] = 0
 
-            # Shape moves from: (num_antennas, chirp_loops, range_idx)
-            # To Range-Doppler Cube: (num_antennas, doppler_bins, range_idx)
-            rd_cube = np.fft.fft(range_fft_subset, axis=1)
-
             # Compute CFAR
             dets = process_frame(range_fft_subset, cfg_cfar)
 
@@ -112,7 +108,7 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
 
              # ── Multi-level BEV (3 elevation-steered beamformings) ────────────
             bev_levels = beamform_multilevel(
-                rd_cube,
+                range_fft_subset,
                 cfg_radar,
                 x_locs[:, 0],
                 dets,

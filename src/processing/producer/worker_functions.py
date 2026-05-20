@@ -151,6 +151,8 @@ def beamform_multilevel(beat_freq_data, radar_params, x_locs, dets):
         )
         bev_levels.append(bev)
  
+    for i, (dh, bev) in enumerate(zip(real_h, bev_levels)):
+        print(f"[DEBUG BF] level {i}: dh={dh:.3f} el_angle={np.arctan2(dh, max(r_mid_m, 0.1)):.4f}rad  max_power={np.max(np.abs(bev)):.4f}")
     return bev_levels
 
 

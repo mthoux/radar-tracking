@@ -121,7 +121,8 @@ class FallDetector:
             # Finite-difference estimate: positive = downward (height decreasing)
             speeds = [recent[i-1] - recent[i] for i in range(1, len(recent))]
             self.recent_downward_speed[track_id] = max(speeds)
- 
+            print(f"[DEBUG SPEED] track={track_id}  recent_centroids={[round(c,3) for c in recent]}  speeds={[round(s,4) for s in speeds]}  max_speed={max(speeds):.4f}")
+        
         return centroid
 
     def update(self, active_track_ids: set[int]) -> list[dict]:
@@ -148,8 +149,6 @@ class FallDetector:
         # Nettoyer les tracks vraiment disparues (> seuil) et alerter
         x_min, x_max, y_min, y_max = self.valid_zone
         for tid, count in list(self.miss_counter.items()):
-
-            print(self.recent_downward_speed.get(tid, 0.0))
 
             if count >= self.fall_threshold and tid not in self.alerted_ids:
 
