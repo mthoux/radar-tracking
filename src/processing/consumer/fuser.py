@@ -22,7 +22,7 @@ class Fuser:
     and target tracking using GTrack.
     """
 
-    def __init__(self, queue_1: Any, queue_2: Any, queue_out: Any, cfg_radar: Dict[str, Any], cfg_gtrack: Any):
+    def __init__(self, queue_1: Any, queue_2: Any, queue_out: Any, cfg_radar: Dict[str, Any], cfg_gtrack: Any, cfg_arduino):
         """
         Initializes the processor with radar geometry and tracking configurations.
         """
@@ -42,7 +42,6 @@ class Fuser:
         
         # Geometric Offsets
         self.x1, self.x2 = +cfg_radar["D_x"]/2 * self.range_res,  -cfg_radar["D_x"]/2 * self.range_res # convert in bins
-        self.y1, self.y2 = cfg_radar["offset_y_2"], cfg_radar["offset_y_2"]
         self.angle_1, self.angle_2 = cfg_radar["angle_1"], cfg_radar["angle_2"]
 
         # Define Cartesian Grid for Fusion
@@ -65,13 +64,13 @@ class Fuser:
         # This prevents costly trigonometric calculations inside the processing loop.
         
         # Radar 1 Mapping
-        phi1 = np.arctan2((self.Y - self.y1).ravel(), (self.X - self.x1).ravel()) - self.angle_1
-        r1 = np.hypot(self.X.ravel() - self.x1, self.Y.ravel() - self.y1)
+        phi1 = np.arctan2((self.Y).ravel(), (self.X - self.x1).ravel()) - self.angle_1
+        r1 = np.hypot(self.X.ravel() - self.x1, self.Y.ravel())
         self.pts1 = np.column_stack((phi1, r1))
 
         # Radar 2 Mapping
-        phi2 = np.arctan2((self.Y - self.y2).ravel(), (self.X - self.x2).ravel()) - self.angle_2
-        r2 = np.hypot(self.X.ravel() - self.x2, self.Y.ravel() - self.y2)
+        phi2 = np.arctan2((self.Y).ravel(), (self.X - self.x2).ravel()) - self.angle_2
+        r2 = np.hypot(self.X.ravel() - self.x2, self.Y.ravel())
         self.pts2 = np.column_stack((phi2, r2))
 
         # Back-sampling Mapping (Cartesian -> Polar display)
@@ -92,15 +91,15 @@ class Fuser:
         # ARDUINO OPTIONNEL
         self.arduino = None
         try:
-            # Remplace 'COM3' par ton port (ex: '/dev/ttyACM0' sur Linux)
-            self.arduino = serial.Serial('/dev/tty.usbmodem1401', 9600, timeout=0.1)
-            print("✅ Arduino détecté et connecté.")
+            self.arduino = serial.Serial(cfg_arduino["port"], 9600, timeout=0.1)
+            print("✅ Arduino detected and connected.")
         except Exception as e:
-            print(f"⚠️ Arduino non détecté : {e}. Mode sans LED activé.")
+            if cfg_arduino["warning"]:
+                print(f"⚠️ Arduino not detected : {e}. Streaming without physical response.")
 
-        # Dans le __init__
+        # Lissage
         self.smooth_heatmap = None
-        self.alpha = 0.5  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux)
+        self.alpha = cfg_radar["alpha_smoothing"]
 
     def _get_latest_from_queues(self):
         """

@@ -80,7 +80,7 @@ def configure_ax_gtrack(ax, width, rgd, range_res):
     ax.set_xlim(-width, width)
     ax.set_ylim(max_y, 0)
     ax.set_xlabel("X position")
-    ax.set_ylabel("Y position")
+    ax.set_ylabel("Y position (m)")
     ax.set_title("GTRACK")
     ax.grid(True)
 

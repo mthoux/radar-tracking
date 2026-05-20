@@ -15,16 +15,16 @@ from .consumer.fuser import Fuser
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2  # Multithreading concurrency mode for COM
 
-def consumer(q_radar1, q_radar2, cfg_radar, cfg_gtrack, stop_event):
+def consumer(q_radar1, q_radar2, cfg_radar, cfg_gtrack, stop_event, cfg_arduino):
     q_results = Queue(maxsize=1)
 
-    fuser = Fuser(q_radar1, q_radar2, q_results, cfg_radar, cfg_gtrack)
+    fuser = Fuser(q_radar1, q_radar2, q_results, cfg_radar, cfg_gtrack, cfg_arduino)
     visualizer = Visualizer(q_results, cfg_radar, stop_event)
     
     visualizer.taskMgr.add(fuser.process, "RadarProcessingTask")
     visualizer.run()
 
-def launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network) -> None:
+def launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network, cfg_arduino) -> None:
    
     q_main_1 = Queue(maxsize=1)
     q_main_2 = Queue(maxsize=1)
@@ -47,7 +47,7 @@ def launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network) -> None:
     data_consumer = Process(
         name="Consumer",
         target=consumer, 
-        args=(q_main_1, q_main_2, cfg_radar, cfg_gtrack, stop_event), 
+        args=(q_main_1, q_main_2, cfg_radar, cfg_gtrack, stop_event, cfg_arduino), 
         daemon=True
     )
 
@@ -84,17 +84,13 @@ def main():
     args = parser.parse_args()
 
     cfg_radar = {
-        "nb_radar" : 1,
         "range_res": 0.044,
         "range_idx": np.arange(0, 100, 1),
         "phi": np.deg2rad(np.arange(0, 180, 1)),
         "width": 100,
         "D_x": 10, # Distance that separate both radars on axis X (in m)
-        "offset_y_1": 0.0,
-        "offset_y_2": 0.0,
         "angle_1": np.deg2rad(0),
         "angle_2": np.deg2rad(0),
-        "n_radar": 2,
         "num_tx": 3,
         "num_rx": 4,
         "num_doppler": 16,
@@ -103,7 +99,8 @@ def main():
         "c": 3e8,
         "lm": 3e8 / 77e9, # c / f
         "slope": 70.150e12,
-        "do_bg_removal": args.bg_removal
+        "do_bg_removal": args.bg_removal,
+        "alpha_smoothing": 0.5  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux)
     }
 
     cfg_network = {
@@ -126,6 +123,11 @@ def main():
         "num_guard_r": 2,
         "num_guard_d": 2,
         "threshold_scale": 1e-3
+    }
+
+    cfg_arduino = {
+        "port": "/dev/tty.usbmodem1401",
+        "warning": False
     }
 
     # Gtrack algorithm configuration
@@ -176,7 +178,7 @@ def main():
     # )
 
     print("⌛️ Starting streaming...")
-    launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network)
+    launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network, cfg_arduino)
 
 if __name__ == "__main__":
     main()

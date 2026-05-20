@@ -9,6 +9,10 @@ from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 from panda3d.core import loadPrcFileData
 
+# Initial configurations
+warnings.simplefilter("ignore", UserWarning)
+sys.coinit_flags = 2
+
 # Internal visualization imports
 from src.processing.consumer.visualizer_functions import (
     configure_ax_bf, 
@@ -16,10 +20,6 @@ from src.processing.consumer.visualizer_functions import (
     configure_ax_gtrack, 
     update_ax_gtrack
 )
-
-# Initial configurations
-warnings.simplefilter("ignore", UserWarning)
-sys.coinit_flags = 2
 
 import matplotlib
 matplotlib.use('Qt5Agg')  # Use TkAgg backend for interactive plotting
@@ -70,14 +70,9 @@ class Visualizer(ShowBase):
 
         # 3. 1D Plot (Power/Range Profile)
         self.ax_1d = self.fig.add_subplot(gs[1, 0])
-        
-        # Récupération de la résolution et création de l'axe en mètres
         res = cfg_radar.get("range_res", 1.0) # On récupère la valeur de la config
         self.r_metres = self.r_idxs * res      # Conversion des indices en mètres
-        
-        # On trace avec self.r_metres au lieu de self.r_idxs
-        self.line_1d, = self.ax_1d.plot(self.r_metres, np.zeros_like(self.r_idxs), color='green')
-        
+        self.line_1d, = self.ax_1d.plot(self.r_metres, np.zeros_like(self.r_idxs), color='green') # On trace avec self.r_metres au lieu de self.r_idxs
         self.ax_1d.set_ylim(0, 1.1)
         self.ax_1d.set_xlim(self.r_metres[0], self.r_metres[-1]) # Calage parfait de l'axe
         self.ax_1d.set_title(f"Power profil for distance (Res: {res*100:.1f}cm)")
@@ -86,13 +81,9 @@ class Visualizer(ShowBase):
 
         # 4. Profil Azimutal (Puissance vs Angle)
         self.ax_azimuth = self.fig.add_subplot(gs[2, 0])
-
-        # On convertit en degrés ET on décale de -90 pour avoir l'échelle [-90, 90]
-        self.phi_deg = np.degrees(self.phi) - 90 
-
+        self.phi_deg = np.degrees(self.phi) - 90  # On convertit en degrés ET on décale de -90 pour avoir l'échelle [-90, 90]
         self.line_azimuth, = self.ax_azimuth.plot(self.phi_deg, np.zeros_like(self.phi), color='blue')
         self.ax_azimuth.set_ylim(0, 1.1)
-
         # Mise à jour auto des limites
         self.ax_azimuth.set_xlim(self.phi_deg[0], self.phi_deg[-1]) 
         self.ax_azimuth.set_title("Power profil for azimuth (Centered)")
@@ -114,7 +105,7 @@ class Visualizer(ShowBase):
 
         # Texte pour le log des chutes (à gauche ou droite selon tes besoins)
         self.fall_log_text = self.ax_3.text(
-            1.02, 1.0, "Chutes :\n—",
+            1.02, 1.0, "Falls :\n—",
             transform=self.ax_3.transAxes,
             fontsize=8, color='red', verticalalignment='top'
         )
@@ -158,7 +149,7 @@ class Visualizer(ShowBase):
                 f"{time.strftime('%H:%M:%S', time.localtime(e['timestamp']))} - ID {e['track_id']}"
                 for e in data.get("all_falls", [])
             ]
-            self.fall_log_text.set_text("Chutes :\n" + "\n".join(history[-5:])) # Affiche les 5 dernières
+            self.fall_log_text.set_text("Falls :\n" + "\n".join(history[-5:])) # Affiche les 5 dernières
 
             # 4. Calculate FPS
             self.frame_counter += 1
