@@ -66,7 +66,7 @@ class Visualizer(ShowBase):
 
         # 2. GTrack (Cartesian)
         self.ax_3 = self.fig.add_subplot(gs[:, 1])
-        configure_ax_gtrack(self.ax_3, cfg_radar["width"], len(self.r_idxs))
+        configure_ax_gtrack(self.ax_3, cfg_radar["width"], len(self.r_idxs), cfg_radar["range_res"])
 
         # 3. 1D Plot (Power/Range Profile)
         self.ax_1d = self.fig.add_subplot(gs[1, 0])
@@ -134,12 +134,9 @@ class Visualizer(ShowBase):
             self.im.set_array(data["heatmap"].ravel())
             update_ax_gtrack(self.ax_3, data["tracks"], self.last_artists)
 
-            # Update Graphique 1D ---
-            if "range_profile" in data:
+            # Update Profile 1D ---
+            if "profile" in data:
                 self.line_1d.set_ydata(data["profile"]["range"])
-
-            # Mise à jour du profil en angle (Y)
-            if "azimuth_profile" in data:
                 self.line_azimuth.set_ydata(data["profile"]["azimuth"])
 
             # 2. Update Title based on learning state

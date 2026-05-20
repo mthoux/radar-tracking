@@ -61,7 +61,7 @@ def configure_ax_db(ax):
     ax.set_title("DBSCAN Clustering on Full Heatmap")
 
 
-def configure_ax_gtrack(ax, width, rgd):
+def configure_ax_gtrack(ax, width, rgd, range_res):
     """
     Configure axes for GTRACK visualization.
 
@@ -75,8 +75,10 @@ def configure_ax_gtrack(ax, width, rgd):
         The range of the y-axis (height) for the visualization.
     """
 
+    max_y = rgd * range_res
+
     ax.set_xlim(-width, width)
-    ax.set_ylim(0, rgd)
+    ax.set_ylim(max_y, 0)
     ax.set_xlabel("X position")
     ax.set_ylabel("Y position")
     ax.set_title("GTRACK")

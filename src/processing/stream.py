@@ -86,7 +86,7 @@ def main():
     cfg_radar = {
         "nb_radar" : 1,
         "range_res": 0.044,
-        "range_idx": np.arange(0, 100, 1),
+        "range_idx": np.arange(0, 200, 1),
         "phi": np.deg2rad(np.arange(0, 180, 1)),
         "width": 100,
         "offset_x_1": +int(10 / (0.044 * 100)), #cm to idx : int(cm / (range_res_m * 100))

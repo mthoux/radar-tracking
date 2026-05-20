@@ -191,7 +191,7 @@ class Fuser:
 
                 # 4. Optimization: On garde les 200 meilleurs pour éviter de saturer le tracker
                 detections = [
-                    Detection(r=self.r_idxs[i], az=self.phi[j], v=0, snr=to_plot[j, i])
+                    Detection(r=self.r_idxs[i]*0.044, az=self.phi[j], v=0, snr=to_plot[j, i])
                     for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
                 ]
 
