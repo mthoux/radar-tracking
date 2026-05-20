@@ -121,7 +121,7 @@ class FallDetector:
             # Finite-difference estimate: positive = downward (height decreasing)
             speeds = [recent[i-1] - recent[i] for i in range(1, len(recent))]
             self.recent_downward_speed[track_id] = max(speeds)
-            print(f"[DEBUG SPEED] track={track_id}  recent_centroids={[round(c,3) for c in recent]}  speeds={[round(s,4) for s in speeds]}  max_speed={max(speeds):.4f}")
+            #print(f"[DEBUG SPEED] track={track_id}  recent_centroids={[round(c,3) for c in recent]}  speeds={[round(s,4) for s in speeds]}  max_speed={max(speeds):.4f}")
         
         return centroid
 
