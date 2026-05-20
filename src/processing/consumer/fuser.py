@@ -84,6 +84,9 @@ class Fuser:
         self.fall_detector = FallDetector(fall_threshold_frames=20)
         self.last_fps = 20.0 # Valeur par défaut pour le seuil initial
 
+        self.disappear_counter = {} 
+        self.DISAPPEAR_LIMIT = 5 # Nombre de frames de tolérance
+
         # ARDUINO OPTIONNEL
         self.arduino = None
         try:
@@ -155,12 +158,15 @@ class Fuser:
             if norm_factor > 0:
                 to_plot /= norm_factor
 
-            # --- BACKGROUND SUBTRACTION ---
-
+           # --- BACKGROUND SUBTRACTION ---
+            is_learning = len(self.clutter_frames) < self.CLUTTER_LEARN_LIMIT
+            
             if self.do_bg_removal:
-                if len(self.clutter_frames) < self.CLUTTER_LEARN_LIMIT:
+                if is_learning:
                     self.clutter_frames.append(to_plot.copy())
                     self.clutter_map = np.mean(self.clutter_frames, axis=0)
+                    if len(self.clutter_frames) == self.CLUTTER_LEARN_LIMIT - 1:
+                        print("Background subtraction completed")
                 elif self.clutter_map is not None:
                     to_plot = np.clip(to_plot - self.clutter_map, 0, None)
 
@@ -168,35 +174,42 @@ class Fuser:
             to_plot = to_plot ** 8
 
             # --- GTRACKING ---
-            # 1. On trouve tous les points au-dessus du seuil
-            indices = np.argwhere(to_plot >= self.snr_threshold)
+            if is_learning:
+                tracks = []
+            else:
+                # 1. On trouve tous les points au-dessus du seuil
+                indices = np.argwhere(to_plot >= self.snr_threshold)
 
-            if len(indices) > 0:
-                # 2. On récupère les valeurs de SNR pour ces indices
-                snr_values = to_plot[indices[:, 0], indices[:, 1]]
+                if len(indices) > 0:
+                    # 2. On récupère les valeurs de SNR pour ces indices
+                    snr_values = to_plot[indices[:, 0], indices[:, 1]]
+                    
+                    # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
+                    sorted_idx = np.argsort(snr_values)[::-1]
+                    indices = indices[sorted_idx]
+
+                # 4. Optimization: On garde les 200 meilleurs pour éviter de saturer le tracker
+                detections = [
+                    Detection(r=self.r_idxs[i], az=self.phi[j], v=0, snr=to_plot[j, i])
+                    for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
+                ]
+
+                gtrack_output = self.tracker.step(detections)
+                tracks = gtrack_output.get('tracks', [])
+
+            # --- LOGIQUE DE DETECTION DE CHUTE (Dans Fuser.py) ---
+            if is_learning:
+                fall_events = []
+            else:
+                active_ids = {t['uid'] for t in tracks}
                 
-                # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
-                sorted_idx = np.argsort(snr_values)[::-1]
-                indices = indices[sorted_idx]
-
-            # 4. Optimization: On garde les 200 meilleurs pour éviter de saturer le tracker
-            detections = [
-                Detection(r=self.r_idxs[i], az=self.phi[j], v=0, snr=to_plot[j, i])
-                for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
-            ]
-
-            gtrack_output = self.tracker.step(detections)
-            tracks = gtrack_output.get('tracks', [])
-
-            # --- LOGIQUE DE DETECTION DE CHUTE ---
-            # 1. Mise à jour des positions pour le détecteur
-            for t in tracks:
-                self.fall_detector.last_positions[t['uid']] = (t['pos'][0], t['pos'][1])
-
-            # 2. Détection
-            active_ids = {t['uid'] for t in tracks}
-            fall_events = self.fall_detector.update(active_ids)
-
+                # Mise à jour des positions
+                for t in tracks:
+                    uid = t['uid']
+                    self.fall_detector.last_positions[uid] = (t['pos'][0], t['pos'][1])
+                
+                # C. Détection
+                fall_events = self.fall_detector.update(active_ids)
 
             # --- LOGIQUE LED ARDUINO ---
             if self.arduino:
