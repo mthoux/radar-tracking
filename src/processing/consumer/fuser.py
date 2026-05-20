@@ -38,10 +38,11 @@ class Fuser:
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
         self.snr_threshold = cfg_gtrack.min_snr_threshold
+        self.range_res = cfg_radar["range_res"]
         
         # Geometric Offsets
-        self.x1, self.y1 = cfg_radar["offset_x_1"], cfg_radar["offset_y_1"]
-        self.x2, self.y2 = cfg_radar["offset_x_2"], cfg_radar["offset_y_2"]
+        self.x1, self.x2 = +cfg_radar["D_x"]/2 * self.range_res,  -cfg_radar["D_x"]/2 * self.range_res # convert in bins
+        self.y1, self.y2 = cfg_radar["offset_y_2"], cfg_radar["offset_y_2"]
         self.angle_1, self.angle_2 = cfg_radar["angle_1"], cfg_radar["angle_2"]
 
         # Define Cartesian Grid for Fusion
@@ -191,7 +192,7 @@ class Fuser:
 
                 # 4. Optimization: On garde les 200 meilleurs pour éviter de saturer le tracker
                 detections = [
-                    Detection(r=self.r_idxs[i]*0.044, az=self.phi[j], v=0, snr=to_plot[j, i])
+                    Detection(r=self.r_idxs[i]*self.range_res, az=self.phi[j], v=0, snr=to_plot[j, i])
                     for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
                 ]
 
