@@ -76,15 +76,12 @@ class Fuser:
 
         # GTrack Module Initialization
         self.tracker = GTrackModule2D(cfg_gtrack)
-
-        # Récupération de l'option (True par défaut si absente de la config)
-        self.do_bg_removal = cfg_radar.get("do_bg_removal", True)
         
         # Background / Clutter Removal State
+        self.do_bg_removal = cfg_radar["do_bg_removal"]
         self.CLUTTER_LEARN_LIMIT = 50
         self.clutter_frames: List[np.ndarray] = []
         self.clutter_map: np.ndarray = None
-
 
         # Initialisation du détecteur de chute
         self.fall_detector = FallDetector(fall_threshold_frames=20)
@@ -102,7 +99,7 @@ class Fuser:
             if cfg_arduino["warning"]:
                 print(f"⚠️ Arduino not detected : {e}. Streaming without physical response.")
 
-        # Lissage
+        # Smoothing
         self.do_smoothing = cfg_radar["smoothing"]
         self.alpha = cfg_radar["alpha_smoothing"]
 
@@ -217,20 +214,12 @@ class Fuser:
             # --- LOGIQUE LED ARDUINO ---
             if self.arduino:
                 try:
-                    # Gestion Tracking (LED Verte/Standard)
-                    self.arduino.write(b'1' if tracks else b'0')
-                    
-                    # Gestion Chute (LED Rouge)
-                    # On allume si des événements de chute sont détectés dans cette frame
-                    if fall_events:
-                        self.arduino.write(b'F')
-                    else:
-                        # Optionnel : tu peux décider de laisser la LED allumée 
-                        # jusqu'à ce qu'un bouton soit pressé, ou l'éteindre si aucune chute n'est active
-                        self.arduino.write(b'N')
+                    self.arduino.write(b'1' if tracks else b'0') # Write Green LED for tracking
+                    if fall_events: self.arduino.write(b'F') # Write red LED for falls
+                    else: self.arduino.write(b'N') # Shutdown red LED when no more falls
                 except:
                     self.arduino = None
-                    print("❌ Connexion Arduino perdue.")
+                    print("❌ Lost connection with Arduino.")
 
             # --- CALCUL DES PROFILS ---
             range_profile = np.max(to_plot, axis=0)
