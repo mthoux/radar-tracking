@@ -23,7 +23,7 @@ def main():
 
     # Initialize the radar
     ROOT_DIR = Path(__file__).resolve().parents[3]
-    cfg_file = ROOT_DIR / "configs" / "profile_super.cfg" 
+    cfg_file = ROOT_DIR / "src" / "mmwave" / "configs" / "profile_super.cfg" 
 
     radar = Radar(
         config_port=config_port,

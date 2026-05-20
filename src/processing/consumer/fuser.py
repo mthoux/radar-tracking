@@ -1,5 +1,3 @@
-import sys
-import warnings
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from direct.task import Task
@@ -11,9 +9,12 @@ from src.processing.consumer.gtrack.config import Detection
 from src.processing.consumer.gtrack.module import GTrackModule2D
 from .fall_detection import FallDetector
 
-# Global configuration to avoid COM initialization issues on some systems
+import sys
+import warnings
+
+# Suppress COM/User warnings before they trigger
 warnings.simplefilter("ignore", UserWarning)
-sys.coinit_flags = 2
+sys.coinit_flags = 2  # Multithreading concurrency mode for COM
 
 class Fuser:
     """
