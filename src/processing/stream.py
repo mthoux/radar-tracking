@@ -100,6 +100,7 @@ def main():
         "lm": 3e8 / 77e9, # c / f
         "slope": 70.150e12,
         "do_bg_removal": args.bg_removal,
+        "smoothing": True,
         "alpha_smoothing": 0.5  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux)
     }
 

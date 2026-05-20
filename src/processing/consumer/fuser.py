@@ -39,6 +39,8 @@ class Fuser:
         self.r_idxs = cfg_radar["range_idx"]
         self.snr_threshold = cfg_gtrack.min_snr_threshold
         self.range_res = cfg_radar["range_res"]
+ 
+        # ---------- FUSION DEFINITIONS ----------
         
         # Geometric Offsets
         self.x1, self.x2 = +cfg_radar["D_x"]/2 * self.range_res,  -cfg_radar["D_x"]/2 * self.range_res # convert in bins
@@ -49,22 +51,11 @@ class Fuser:
         self.y_grid = self.r_idxs
         self.X, self.Y = np.meshgrid(self.x_grid, self.y_grid, indexing='xy')
 
-        # GTrack Module Initialization
-        self.tracker = GTrackModule2D(cfg_gtrack)
-
-        # Récupération de l'option (True par défaut si absente de la config)
-        self.do_bg_removal = cfg_radar.get("do_bg_removal", True)
-        
-        # Background / Clutter Removal State
-        self.CLUTTER_LEARN_LIMIT = 50
-        self.clutter_frames: List[np.ndarray] = []
-        self.clutter_map: np.ndarray = None
-
         # PRE-COMPUTATION: Mapping Polar coordinates to Cartesian points once.
         # This prevents costly trigonometric calculations inside the processing loop.
         
         # Radar 1 Mapping
-        phi1 = np.arctan2((self.Y).ravel(), (self.X - self.x1).ravel()) - self.angle_1
+        phi1 = np.arctan2(self.Y.ravel(), (self.X - self.x1).ravel()) - self.angle_1
         r1 = np.hypot(self.X.ravel() - self.x1, self.Y.ravel())
         self.pts1 = np.column_stack((phi1, r1))
 
@@ -80,6 +71,20 @@ class Fuser:
             (R_MESH * np.cos(PHI_MESH)).ravel()  # x-coord on cartesian grid
         ))
         self.POLAR_SHAPE = PHI_MESH.shape
+
+        # ----------------------------------------
+
+        # GTrack Module Initialization
+        self.tracker = GTrackModule2D(cfg_gtrack)
+
+        # Récupération de l'option (True par défaut si absente de la config)
+        self.do_bg_removal = cfg_radar.get("do_bg_removal", True)
+        
+        # Background / Clutter Removal State
+        self.CLUTTER_LEARN_LIMIT = 50
+        self.clutter_frames: List[np.ndarray] = []
+        self.clutter_map: np.ndarray = None
+
 
         # Initialisation du détecteur de chute
         self.fall_detector = FallDetector(fall_threshold_frames=20)
@@ -98,7 +103,7 @@ class Fuser:
                 print(f"⚠️ Arduino not detected : {e}. Streaming without physical response.")
 
         # Lissage
-        self.smooth_heatmap = None
+        self.do_smoothing = cfg_radar["smoothing"]
         self.alpha = cfg_radar["alpha_smoothing"]
 
     def _get_latest_from_queues(self):
@@ -142,14 +147,11 @@ class Fuser:
             Z_cart = (interp1(self.pts1) + interp2(self.pts2)).reshape(self.X.shape) / 2.0
 
             # --- PERSISTENCE (Lissage temporel) ---
-            if self.smooth_heatmap is None:
-                self.smooth_heatmap = Z_cart
-            else:
-                # On mélange l'ancienne et la nouvelle frame
-                self.smooth_heatmap = (self.alpha * Z_cart) + ((1 - self.alpha) * self.smooth_heatmap)
+            if self.do_smoothing:
+                Z_cart = (self.alpha * Z_cart) + ((1 - self.alpha) * Z_cart)
 
             # On continue le process avec la version lissée
-            interp_fused = RegularGridInterpolator((self.y_grid, self.x_grid), self.smooth_heatmap, bounds_error=False, fill_value=0)
+            interp_fused = RegularGridInterpolator((self.y_grid, self.x_grid), Z_cart, bounds_error=False, fill_value=0)
        
             Z_polar = np.flip(interp_fused(self.pts_back).reshape(self.POLAR_SHAPE), axis=0)
 
