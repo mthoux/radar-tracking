@@ -60,7 +60,8 @@ def beamform_2d_s(beat_freq_data, radar_params, x_locs, dets):
 # ---------------------------------------------------------------------------
 # Multi-elevation Beamforming
 # ---------------------------------------------------------------------------
- 
+
+# NO USED ANYMORE 
 def beamform_2d_elevation(beat_freq_data, radar_params, x_locs, dets,
                           elevation_angle_rad: float):
     """
@@ -112,6 +113,35 @@ def beamform_2d_elevation(beat_freq_data, radar_params, x_locs, dets,
         )
  
     return sph_pwr
+
+def beamform_2d_elevation_perbin(beat_freq_data, radar_params, x_locs, dets,
+                                  cos_el_per_bin: np.ndarray):
+    """
+    Beamform avec un angle d'élévation différent par bin de range.
+    cos_el_per_bin : shape (num_range,) — cos(θ_el) pour chaque bin
+    """
+    lm     = radar_params["lm"]
+    phi    = radar_params["phi"]
+    r_idxs = radar_params["range_idx"]
+    num_phi = len(phi)
+
+    r_idx, d_idx = np.nonzero(dets)
+    sph_pwr = np.zeros((num_phi, r_idxs.shape[0]), dtype=np.complex64)
+
+    for d, r in zip(r_idx, d_idx):
+        # Angle d'élévation spécifique à CE bin de range
+        cos_el = cos_el_per_bin[r]
+        angles = x_locs * np.cos(phi[:, np.newaxis]) * cos_el
+        phase_shifts = np.exp((1j * 2 * np.pi / lm) * angles)
+
+        beat = beat_freq_data[:, d, r]
+        beamformed_signal = beat[np.newaxis, :] * phase_shifts
+        sph_pwr[:, r] = np.maximum(
+            sph_pwr[:, r],
+            np.abs(np.sum(beamformed_signal, axis=-1))
+        )
+
+    return sph_pwr
  
  
 def beamform_multilevel(beat_freq_data, radar_params, x_locs, dets):
@@ -138,20 +168,23 @@ def beamform_multilevel(beat_freq_data, radar_params, x_locs, dets):
     r_idxs     = radar_params["range_idx"]
     heights_m  = radar_params["elevation_heights"]
  
-    # Representative range for elevation angle computation (mid of window, in m)
-    r_mid_m = float(np.median(r_idxs)) * range_res  # metres
+    # Representative range for elevation angle computation (using bin of range)
+    r_metres = r_idxs * range_res  # shape (num_range,)  ex: [0.04, 0.08, ..., 4.4m]
  
     bev_levels = []
     real_h = tuple(h - heights_m[1] for h in heights_m) # Elevation heights in the radar referential
     for dh in real_h:
-        # Clamp to avoid arctan(inf) for very short ranges
-        el_angle = np.arctan2(dh, max(r_mid_m, 0.1))
-        bev = beamform_2d_elevation(
-            beat_freq_data, radar_params, x_locs, dets, el_angle
+        # Shape (num_range,) — chaque bin a son propre angle
+        el_angles_per_bin = np.arctan2(dh, np.maximum(r_metres, 0.1))
+        # Shape (num_range,) — cos différent pour chaque bin
+        cos_el_per_bin = np.cos(el_angles_per_bin)
+
+        bev = beamform_2d_elevation_perbin(
+            beat_freq_data, radar_params, x_locs, dets, cos_el_per_bin
         )
         bev_levels.append(bev)
     
-    print(f"[DEBUG BF] r_mid_m={r_mid_m:.2f}m  heights={heights_m}  real_h={real_h}  angles={[round(np.degrees(np.arctan2(dh, max(r_mid_m, 0.1))),2) for dh in real_h]}")
+    #print(f"[DEBUG BF] r_mid_m={r_mid_m:.2f}m  heights={heights_m}  real_h={real_h}  angles={[round(np.degrees(np.arctan2(dh, max(r_mid_m, 0.1))),2) for dh in real_h]}")
     #for i, (dh, bev) in enumerate(zip(real_h, bev_levels)):
     #    print(f"[DEBUG BF] level {i}: dh={dh:.3f} el_angle={np.arctan2(dh, max(r_mid_m, 0.1)):.4f}rad  max_power={np.max(np.abs(bev)):.4f}")
     return bev_levels
