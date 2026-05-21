@@ -66,20 +66,33 @@ class FallDetector:
         n = len(hist)
 
         if n >= 2:
-            # Vitesses instantanées entre chaque paire consécutive
-            vz_values = []
-            for i in range(1, n):
-                t0, h0 = hist[i - 1]
-                t1, h1 = hist[i]
-                dt = t1 - t0
-                vz_values.append((h1 - h0) / dt)
+            # ------ Regression linéaire ------------
+            hist = list(self._height_history[uid])
+            times   = np.array([t for t, h in hist])
+            heights = np.array([h for t, h in hist])
 
-            if vz_values:
-                # Recompute weights for actual number of valid intervals
-                weights = np.arange(1, len(vz_values) + 1, dtype=float) ** 2
-                weights /= weights.sum()
-                self._avg_vz[uid] = float(np.dot(vz_values, weights))
-                print(f"[SPEED] uid={uid} avg_vz={self._avg_vz[uid]:.3f} m/s")
+            # Centrer les temps pour la stabilité numérique
+            times -= times[0]
+
+            vz = np.polyfit(times, heights, deg=1)[0]
+            self._avg_vz[uid] = float(vz)
+            print(f"[SPEED] uid={uid} avg_vz={self._avg_vz[uid]:.3f} m/s")
+            # ------ FIN ----------------------------
+
+            # Vitesses instantanées entre chaque paire consécutive
+            # vz_values = []
+            # for i in range(1, n):
+            #     t0, h0 = hist[i - 1]
+            #     t1, h1 = hist[i]
+            #     dt = t1 - t0
+            #     vz_values.append((h1 - h0) / dt)
+
+            # if vz_values:
+            #     # Recompute weights for actual number of valid intervals
+            #     weights = np.arange(1, len(vz_values) + 1, dtype=float) ** 2
+            #     weights /= weights.sum()
+            #     self._avg_vz[uid] = float(np.dot(vz_values, weights))
+            #     print(f"[SPEED] uid={uid} avg_vz={self._avg_vz[uid]:.3f} m/s")
 
     def update_with_elevation(
         self,
