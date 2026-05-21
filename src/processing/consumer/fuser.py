@@ -81,7 +81,7 @@ class Fuser:
         dx2_local =  dx2 * np.cos(self.angle_2) + dy2 * np.sin(self.angle_2)
         dy2_local = -dx2 * np.sin(self.angle_2) + dy2 * np.cos(self.angle_2)
 
-        phi2 = np.arctan2(dy2_local, dx2_local)  # ← same
+        phi2 = np.arctan2(dy2_local, dx2_local)  
         r2   = np.hypot(dx2, dy2)
         self.pts2 = np.column_stack((phi2, r2))
 
@@ -181,11 +181,8 @@ class Fuser:
        
             Z_polar = np.flip(interp_fused(self.pts_back).reshape(self.POLAR_SHAPE), axis=0)
 
-            # Normalize 
+            
             to_plot = np.abs(Z_polar)
-            norm_factor = np.max(to_plot)
-            if norm_factor > 0:
-                to_plot /= norm_factor
 
             # --- BACKGROUND SUBTRACTION ---
 
@@ -195,6 +192,13 @@ class Fuser:
                     self.clutter_map = np.mean(self.clutter_frames, axis=0)
                 elif self.clutter_map is not None:
                     to_plot = np.clip(to_plot - self.clutter_map, 0, None)
+
+
+            # Normalize 
+            norm_factor = np.max(to_plot)
+            if norm_factor > 0:
+                to_plot /= norm_factor
+
 
             # Sharpen the heatmap for point detection
             to_plot = to_plot ** 8

@@ -88,19 +88,30 @@ def main():
         "range_res": 0.044,
         "range_idx": np.arange(0, 100, 1),
         "phi": np.deg2rad(np.arange(0, 180, 1)),
-        "width": 100,
+        "width": 50, 
 
+
+        # # 1.35m baseline → each radar is 0.675m from center
+        # # 0.675m / 0.044 = ~15.3 bins
+        # "offset_x_1": +int(0.675 / 0.044),  # = +15  (Right radar)
+        # "offset_x_2": -int(0.675 / 0.044),  # = -15  (Left radar)
+        # "offset_y_1": 0.0,
+        # "offset_y_2": 0.0,
+
+        # # Toe-in angles: R1 points right (+30°), R2 points left (-30°) 
+        # "angle_1": np.deg2rad(-30),
+        # "angle_2": np.deg2rad(+30),
 
         # 1.35m baseline → each radar is 0.675m from center
         # 0.675m / 0.044 = ~15.3 bins
-        "offset_x_1": +int(0.675 / 0.044),  # = +15  (Right radar)
-        "offset_x_2": -int(0.675 / 0.044),  # = -15  (Left radar)
+        "offset_x_1": 0,
+        "offset_x_2": -int(1.0 / 0.044),  
         "offset_y_1": 0.0,
-        "offset_y_2": 0.0,
+        "offset_y_2": int(0.5 / 0.044),  
 
-        # Toe-in angles: R1 points right (+30°), R2 points left (-30°) 
-        "angle_1": np.deg2rad(-30),
-        "angle_2": np.deg2rad(+30),
+        "angle_1": np.deg2rad(0),
+        "angle_2": np.deg2rad(90),
+
         "n_radar": 2,
         "num_tx": 3,
         "num_rx": 4,
