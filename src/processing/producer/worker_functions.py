@@ -3,6 +3,63 @@ import numpy as np
 from scipy.signal import convolve2d
 from sklearn.cluster import DBSCAN
 
+# ---------------------------------------------------------------------------
+# TX1 and TX2 share the same azimuth positions but differ in elevation.
+# The elevation phase difference between TX2 and TX1 on the same RX channel
+# encodes sin(θ_el):
+#
+#   Δφ(r, d) = angle( Σ_rx  conj(TX1[rx, d, r]) · TX2[rx, d, r] )
+#   sin(θ_el) = Δφ · λ / (2π · d_el)
+#
+# d_el = λ/2 for AWR1843 → sin(θ_el) = Δφ / π
+# ---------------------------------------------------------------------------
+
+# Antenna index groupings (TX1 → TX3 → TX2)
+TX1_ROWS = [0, 1, 2, 3]   # ground row
+TX3_ROWS = [4, 5, 6, 7]   # ground row, azimuth shifted
+TX2_ROWS = [8, 9, 10, 11] # elevated row
+ 
+# Elevation separation between TX1 and TX2 rows (in units of λ)
+# AWR1843: d_el = λ/2
+D_EL_WAVELENGTHS = 0.5
+
+# ---------------------------------------------------------------------------
+# Elevation angle estimation from TX1/TX2 phase difference
+# ---------------------------------------------------------------------------
+ 
+def estimate_elevation_map(beat_freq_data, dets):
+    """
+    Estimate sin(elevation_angle) for every detected (doppler, range) bin
+    using the phase difference between TX2 and TX1 antenna rows.
+ 
+    Parameters
+    ----------
+    beat_freq_data : np.ndarray  shape (12, N_doppler, N_range)
+    dets           : np.ndarray  bool shape (N_doppler, N_range)
+ 
+    Returns
+    -------
+    sin_el_map : np.ndarray  shape (N_doppler, N_range)
+        sin(θ_el) at each detected bin; 0 where no detection.
+    el_map_deg : np.ndarray  shape (N_doppler, N_range)
+        elevation angle in degrees (for display / debug).
+    """
+    # Average across RX channels within each TX row → shape (N_doppler, N_range)
+    tx1 = np.mean(beat_freq_data[TX1_ROWS], axis=0)
+    tx2 = np.mean(beat_freq_data[TX2_ROWS], axis=0)
+ 
+    # Cross-correlation phase → Δφ in [-π, π]
+    cross  = tx2 * np.conj(tx1)
+    delta_phi = np.angle(cross)          # shape (N_doppler, N_range)
+ 
+    # sin(θ_el) = Δφ / (2π · d_el)
+    sin_el = delta_phi / (2.0 * np.pi * D_EL_WAVELENGTHS)
+    sin_el = np.clip(sin_el, -1.0, 1.0)
+ 
+    sin_el_map = np.where(dets, sin_el, 0.0)
+    el_map_deg = np.degrees(np.arcsin(sin_el_map))
+ 
+    return sin_el_map, el_map_deg
 
 def beamform_2d_s(beat_freq_data, radar_params, x_locs, dets):
     """
@@ -57,138 +114,20 @@ def beamform_2d_s(beat_freq_data, radar_params, x_locs, dets):
 
     return sph_pwr
 
-# ---------------------------------------------------------------------------
-# Multi-elevation Beamforming
-# ---------------------------------------------------------------------------
-
-# NO USED ANYMORE 
-def beamform_2d_elevation(beat_freq_data, radar_params, x_locs, dets,
-                          elevation_angle_rad: float):
+def beamform_and_elevation(beat_freq_data, radar_params, x_locs, dets):
     """
-    Beamform with a fixed elevation steering angle, isolating power
-    originating from a specific height slice.
- 
-    The phase shift per antenna becomes:
-        φ = (2π/λ) · x_loc · cos(φ_az) · cos(θ_el)
-    where θ_el is the elevation angle (0 = horizontal plane).
- 
-    The cos(θ_el) factor compresses the effective aperture as seen from
-    the elevated direction, which is the correct 3D steering projection
-    for a horizontal ULA (the AWR1843 virtual array lies in the horizontal
-    plane so it has no physical elevation aperture, but this weighting
-    selectively attenuates contributions that do NOT originate from the
-    target elevation).
- 
-    Parameters
-    ----------
-    beat_freq_data : np.ndarray  (num_tx*num_rx, num_doppler, num_range)
-    radar_params   : dict
-    x_locs         : np.ndarray  antenna x-positions (m)
-    dets           : np.ndarray  2-D boolean CFAR detection map
-    elevation_angle_rad : float  target elevation angle in radians
- 
+    Convenience wrapper: runs azimuth beamforming AND elevation estimation
+    in one call so the producer only loops over detections once.
+
     Returns
     -------
-    sph_pwr : np.ndarray  shape (num_phi, num_range)
+    bev      : np.ndarray  shape (num_phi, num_range)   - azimuth power map
+    sin_el   : np.ndarray  shape (N_doppler, N_range)   - sin(θ_el) per bin
+    el_deg   : np.ndarray  shape (N_doppler, N_range)   - elevation in degrees
     """
-    lm     = radar_params["lm"]
-    phi    = radar_params["phi"]
-    r_idxs = radar_params["range_idx"]
-    num_phi = len(phi)
- 
-    # Project antenna spacing onto the steered direction
-    cos_el = np.cos(elevation_angle_rad)
-    angles       = x_locs * np.cos(phi[:, np.newaxis]) * cos_el
-    phase_shifts = np.exp((1j * 2 * np.pi / lm) * angles)
- 
-    r_idx, d_idx = np.nonzero(dets)
-    sph_pwr = np.zeros((num_phi, r_idxs.shape[0]), dtype=np.complex64)
- 
-    for d, r in zip(r_idx, d_idx):
-        beat = beat_freq_data[:, d, r]
-        beamformed_signal = beat[np.newaxis, :] * phase_shifts
-        sph_pwr[:, r] = np.maximum(
-            sph_pwr[:, r],
-            np.abs(np.sum(beamformed_signal, axis=-1))
-        )
- 
-    return sph_pwr
-
-def beamform_2d_elevation_perbin(beat_freq_data, radar_params, x_locs, dets,
-                                  cos_el_per_bin: np.ndarray):
-    """
-    Beamform avec un angle d'élévation différent par bin de range.
-    cos_el_per_bin : shape (num_range,) — cos(θ_el) pour chaque bin
-    """
-    lm     = radar_params["lm"]
-    phi    = radar_params["phi"]
-    r_idxs = radar_params["range_idx"]
-    num_phi = len(phi)
-
-    r_idx, d_idx = np.nonzero(dets)
-    sph_pwr = np.zeros((num_phi, r_idxs.shape[0]), dtype=np.complex64)
-
-    for d, r in zip(r_idx, d_idx):
-        # Angle d'élévation spécifique à CE bin de range
-        cos_el = cos_el_per_bin[r]
-        angles = x_locs * np.cos(phi[:, np.newaxis]) * cos_el
-        phase_shifts = np.exp((1j * 2 * np.pi / lm) * angles)
-
-        beat = beat_freq_data[:, d, r]
-        beamformed_signal = beat[np.newaxis, :] * phase_shifts
-        sph_pwr[:, r] = np.maximum(
-            sph_pwr[:, r],
-            np.abs(np.sum(beamformed_signal, axis=-1))
-        )
-
-    return sph_pwr
- 
- 
-def beamform_multilevel(beat_freq_data, radar_params, x_locs, dets):
-    """
-    Run one beamforming pass per height level and return a list of BEV maps.
- 
-    The elevation angle for each height h is estimated as the median
-    elevation across the visible range window:
-        θ_el(h) = arctan(h / r_mid)
-    where r_mid is the midpoint of the range window in metres.
- 
-    Parameters
-    ----------
-    heights_m : tuple of float
-        Physical heights above the radar plane (metres).
-        Defaults to (0.3 m, 0.9 m, 1.5 m) — floor / waist / head.
- 
-    Returns
-    -------
-    bev_levels : list of np.ndarray, one per height
-        Each array has shape (num_phi, num_range).
-    """
-    range_res  = radar_params["range_res"]
-    r_idxs     = radar_params["range_idx"]
-    heights_m  = radar_params["elevation_heights"]
- 
-    # Representative range for elevation angle computation (using bin of range)
-    r_metres = r_idxs * range_res  # shape (num_range,)  ex: [0.04, 0.08, ..., 4.4m]
- 
-    bev_levels = []
-    real_h = tuple(h - heights_m[1] for h in heights_m) # Elevation heights in the radar referential
-    for dh in real_h:
-        # Shape (num_range,) — chaque bin a son propre angle
-        el_angles_per_bin = np.arctan2(dh, np.maximum(r_metres, 0.1))
-        # Shape (num_range,) — cos différent pour chaque bin
-        cos_el_per_bin = np.cos(el_angles_per_bin)
-
-        bev = beamform_2d_elevation_perbin(
-            beat_freq_data, radar_params, x_locs, dets, cos_el_per_bin
-        )
-        bev_levels.append(bev)
-    
-    #print(f"[DEBUG BF] r_mid_m={r_mid_m:.2f}m  heights={heights_m}  real_h={real_h}  angles={[round(np.degrees(np.arctan2(dh, max(r_mid_m, 0.1))),2) for dh in real_h]}")
-    #for i, (dh, bev) in enumerate(zip(real_h, bev_levels)):
-    #    print(f"[DEBUG BF] level {i}: dh={dh:.3f} el_angle={np.arctan2(dh, max(r_mid_m, 0.1)):.4f}rad  max_power={np.max(np.abs(bev)):.4f}")
-    return bev_levels
-
+    bev            = beamform_2d_s(beat_freq_data, radar_params, x_locs, dets)
+    sin_el, el_deg = estimate_elevation_map(beat_freq_data, dets)
+    return bev, sin_el, el_deg
 
 def cfar_ca_2d(power_map,
                num_train_range: int = 10,

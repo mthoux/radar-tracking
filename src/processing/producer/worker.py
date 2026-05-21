@@ -4,8 +4,7 @@ import queue
 from src.mmwave.dataloader.adc import DCA1000
 from src.processing.producer.worker_functions import (
     process_frame,
-    beamform_2d_s,
-    beamform_multilevel,
+    beamform_and_elevation,
 )
 from src.processing.utils.utils import get_ant_pos_2d
 
@@ -103,20 +102,14 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
             # Compute CFAR
             dets = process_frame(range_fft_subset, cfg_cfar)
 
-            # Compute beamforming
-            bf_output = beamform_2d_s(range_fft_subset, cfg_radar, x_locs[:,0], dets)
-
-             # ── Multi-level BEV (3 elevation-steered beamformings) ────────────
-            bev_levels = beamform_multilevel(
-                range_fft_subset,
-                cfg_radar,
-                x_locs[:, 0],
-                dets,
+            # Compute beamforming and elevation
+            bev, sin_el, _ = beamform_and_elevation(
+                range_fft_subset, cfg_radar, x_locs[:, 0], dets
             )
 
             # Send the data to the queue
             try:
-                q.put_nowait(("bev", (bf_output, bev_levels)))
+                q.put_nowait(("bev", (bev, sin_el)))
             except queue.Full:
                 continue
 

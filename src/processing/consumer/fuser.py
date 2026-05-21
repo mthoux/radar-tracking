@@ -11,7 +11,6 @@ from src.processing.consumer.gtrack.config import Detection
 from src.processing.consumer.gtrack.module import GTrackModule2D
 from .fall_detection import FallDetector
 
-
 # Global configuration to avoid COM initialization issues on some systems
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2
@@ -82,10 +81,7 @@ class Fuser:
         self.POLAR_SHAPE = PHI_MESH.shape
 
         # Initialisation du détecteur de chute
-        el_h = cfg_radar["elevation_heights"]
-        self.fall_detector = FallDetector(
-            elevation_heights=el_h,
-        )
+        self.fall_detector = FallDetector(fall_threshold_frames=20)
         self.last_fps = 20.0 # Valeur par défaut pour le seuil initial
 
         # ARDUINO OPTIONNEL
@@ -100,8 +96,6 @@ class Fuser:
         # Dans le __init__
         self.smooth_heatmap = None
         self.alpha = 0.5  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux)
-
-    # ------------------------------------------------------------------
 
     def _get_latest_from_queues(self):
         """
@@ -120,31 +114,6 @@ class Fuser:
             except:
                 pass
         return any(self.msg_ready)
-    # ------------------------------------------------------------------
- 
-    def _fuse_single_bev(self, bev1: np.ndarray, bev2: np.ndarray) -> np.ndarray:
-        """
-        Fuse two polar BEV maps from the two radars into one Cartesian map,
-        then back to polar, and apply background subtraction + sharpening.
- 
-        Returns the normalised, sharpened polar map ready for tracking.
-        """
-        # Instantiate interpolators (Note: Moving to map_coordinates would be even faster)
-        interp1 = RegularGridInterpolator(
-            (self.phi, self.r_idxs), bev1,
-            bounds_error=False, fill_value=0
-        )
-        interp2 = RegularGridInterpolator(
-            (self.phi, self.r_idxs), bev2,
-            bounds_error=False, fill_value=0
-        )
-        # Map both radars to the same Cartesian space and fuse using Maximum Intensity Projection
-        Z_cart = np.maximum(
-            interp1(self.pts1), interp2(self.pts2)
-        ).reshape(self.X.shape)
-        return Z_cart
-    
-    # ------------------------------------------------------------------
 
     # Data processing is performed here
     def process(self, task: Task) -> int:
@@ -157,11 +126,15 @@ class Fuser:
 
         # 2. Process only if we have a frame from both radars
         if has_new_data and all(self.msg_ready):
-            # Unpack: each msg is (flat_bev, [bev_l0, bev_l1, bev_l2])
-            flat_bev_1, bev_levels_1 = self.latest_msg[0]
-            flat_bev_2, bev_levels_2 = self.latest_msg[1]
+            (bf_1, sin_el_1), (bf_2, sin_el_2) = self.latest_msg[0], self.latest_msg[1]
+            
+            # --- FUSION ENGINE ---
+            # Instantiate interpolators (Note: Moving to map_coordinates would be even faster)
+            interp1 = RegularGridInterpolator((self.phi, self.r_idxs), bf_1, bounds_error=False, fill_value=0)
+            interp2 = RegularGridInterpolator((self.phi, self.r_idxs), bf_2, bounds_error=False, fill_value=0)
 
-            Z_cart = self._fuse_single_bev(flat_bev_1, flat_bev_2)
+            # Map both radars to the same Cartesian space and fuse using Maximum Intensity Projection
+            Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
 
             # --- PERSISTENCE (Lissage temporel) ---
             if self.smooth_heatmap is None:
@@ -182,7 +155,6 @@ class Fuser:
                 to_plot /= norm_factor
 
             # --- BACKGROUND SUBTRACTION ---
-
             if self.do_bg_removal:
                 if len(self.clutter_frames) < self.CLUTTER_LEARN_LIMIT:
                     self.clutter_frames.append(to_plot.copy())
@@ -192,26 +164,6 @@ class Fuser:
 
             # Sharpen the heatmap for point detection
             to_plot = to_plot ** 8
-
-            # We fuse level-by-level (max of radar1 and radar2 for that height)
-            # and normalise each level independently so height centroid is meaningful.
-            fused_levels = []
-            for bev1_lvl, bev2_lvl in zip(bev_levels_1, bev_levels_2):
-                Z_lvl = self._fuse_single_bev(bev1_lvl, bev2_lvl)
- 
-                interp_lvl = RegularGridInterpolator(
-                    (self.y_grid, self.x_grid), Z_lvl,
-                    bounds_error=False, fill_value=0
-                )
-                Z_polar_lvl = np.flip(
-                    interp_lvl(self.pts_back).reshape(self.POLAR_SHAPE),
-                    axis=0
-                )
-                lvl_map = np.abs(Z_polar_lvl)
-                mx = lvl_map.max()
-                if mx > 0:
-                    lvl_map /= mx
-                fused_levels.append(lvl_map)
 
             # --- GTRACKING ---
             # Only generate detections for points above the SNR threshold
@@ -227,19 +179,8 @@ class Fuser:
             tracks = gtrack_output.get('tracks', [])
 
             # --- LOGIQUE DE DETECTION DE CHUTE ---
-            # 1. Mise à jour des positions pour le détecteur et donner les centroids d'hauteur aux tracks
-            for t in tracks:
-                self.fall_detector.last_positions[t['uid']] = (
-                    t['pos'][0], t['pos'][1]
-                )
-                self.fall_detector.update_height_centroids(
-                    track_id  = t['uid'],
-                    track_pos = (t['pos'][0], t['pos'][1]),
-                    bev_levels= fused_levels,
-                    phi       = self.phi,
-                    r_idxs    = self.r_idxs,
-                    radius_m  = 1.5,   # integrate within 1.5 index-units of track
-                )
+            # 1. Mise à jour des élevations pour le détecteur
+            self.fall_detector._update_with_elevation(tracks, sin_el_1, sin_el_2)
 
             # 2. Détection
             active_ids = {t['uid'] for t in tracks}
@@ -257,7 +198,7 @@ class Fuser:
                     if fall_events:
                         self.arduino.write(b'F')
                     else:
-                        # on peux décider de laisser la LED allumée 
+                        # Optionnel : tu peux décider de laisser la LED allumée 
                         # jusqu'à ce qu'un bouton soit pressé, ou l'éteindre si aucune chute n'est active
                         self.arduino.write(b'N')
                 except:
