@@ -83,6 +83,7 @@ class Fuser:
         # Initialisation du détecteur de chute
         self.fall_detector = FallDetector(fall_threshold_frames=20)
         self.last_fps = 20.0 # Valeur par défaut pour le seuil initial
+        self.radar_height = cfg_radar.get("radar_mount_height", 0.0)
 
         # ARDUINO OPTIONNEL
         self.arduino = None
@@ -180,7 +181,7 @@ class Fuser:
 
             # --- LOGIQUE DE DETECTION DE CHUTE ---
             # 1. Mise à jour des élevations pour le détecteur
-            self.fall_detector._update_with_elevation(tracks, sin_el_1, sin_el_2)
+            self.fall_detector.update_with_elevation(tracks, sin_el_1, sin_el_2, self.radar_height)
 
             # 2. Détection
             active_ids = {t['uid'] for t in tracks}

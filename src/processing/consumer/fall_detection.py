@@ -71,11 +71,12 @@ class FallDetector:
                 self._last_vz[uid] = (h1 - h0) / dt
                 print(f"[SPEED] {self._last_vz[uid]}")
 
-    def _update_with_elevation(
+    def update_with_elevation(
         self,
         tracks,
         sin_el_1,
         sin_el_2,
+        r_height,
     ):
         """
         For each active track estimate its height from the elevation map and
@@ -116,7 +117,7 @@ class FallDetector:
     
                     # Average the two radar elevation maps
                     sin_el = 0.5 * (sin_el_1[d_bin, r_bin] + sin_el_2[d_bin, r_bin])
-                    height = pt.range * sin_el
+                    height = r_height + pt.range * sin_el
                     heights.append(height)
                     weights.append(pt.snr)
     
@@ -132,7 +133,7 @@ class FallDetector:
                 sin_el = 0.5 * (
                     np.mean(sin_el_1[:, r_bin]) + np.mean(sin_el_2[:, r_bin])
                 )
-                height_m = track_range * sin_el
+                height_m = r_height + track_range * sin_el
     
             if now is None:
                 import time

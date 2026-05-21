@@ -105,6 +105,7 @@ def main():
         "lm": 3e8 / 77e9, # c / f
         "slope": 70.150e12,
         "do_bg_removal": args.bg_removal,
+        "radar_mount_height": 0.85,   # metres — set to 0.0 if radar is on the floor
     }
 
     cfg_network = {
