@@ -55,14 +55,16 @@ class Visualizer(ShowBase):
         self.ax = self.fig.add_subplot(gs[0, 0], projection='polar')
         self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs * cfg_radar["range_res"])   
 
-        # pos = self.ax.get_position()
+        pos = self.ax.get_position()
 
-        # self.ax.set_position([
-        #     pos.x0 - 0.6,
-        #     pos.y0 - 0.17,
-        #     pos.width + 0.10,
-        #     pos.height + 0.20
-        # ])
+        # Bidouillage pour grossir le plot
+        # [x, y, width, height]
+        self.ax.set_position([
+            pos.x0 - 0.11,  # Décalage gauche
+            pos.y0 - 0.11,  # Décalage bas
+            pos.width * 2,  # 200% plus large
+            pos.height * 1.6  # 20% plus haut
+        ])
 
         # 2. GTrack (Cartesian)
         self.ax_3 = self.fig.add_subplot(gs[:, 1])

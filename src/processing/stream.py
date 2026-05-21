@@ -89,7 +89,7 @@ def main():
         #"phi": np.deg2rad(np.arange(0, 100, 1)), # fov_angle
         "phi": np.deg2rad(np.arange(-50, 51, 1)),
         "width": 100,
-        "D_x": 0.10, # Distance that separate both radars on axis X (in m)
+        "D_x": 0.70, # Distance that separate both radars on axis X (in m)
         "angle_1": np.deg2rad(0),
         "angle_2": np.deg2rad(0),
         "num_tx": 3,                # Number of TX (for worker)
