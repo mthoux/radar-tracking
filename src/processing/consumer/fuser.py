@@ -81,7 +81,10 @@ class Fuser:
         self.POLAR_SHAPE = PHI_MESH.shape
 
         # Initialisation du détecteur de chute
-        self.fall_detector = FallDetector(fall_threshold_frames=20)
+        self.fall_detector = FallDetector(
+            fall_threshold_frames=20,
+            valid_zone = (-(cfg_radar["width"]-10), (cfg_radar["width"]-10), 5, len(cfg_radar["range_idx"]) -5)
+        )
         self.last_fps = 20.0 # Valeur par défaut pour le seuil initial
         self.radar_height = cfg_radar.get("radar_mount_height", 0.0)
 
