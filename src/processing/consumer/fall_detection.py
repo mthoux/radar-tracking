@@ -69,8 +69,9 @@ class FallDetector:
             dt = t1 - t0
             if dt > 1e-6:
                 self._last_vz[uid] = (h1 - h0) / dt
+                print(f"[SPEED] {self._last_vz[uid]}")
 
-    def _update_fall_detector_with_elevation(
+    def _update_with_elevation(
         self,
         tracks,
         sin_el_1,
@@ -209,7 +210,7 @@ class FallDetector:
                 event = {
                     "track_id":      tid,
                     "missing_frames": count,
-                    "peak_downward_speed": peak_speed,
+                    "peak_downward_speed": vz,
                     "timestamp":      time.time(),
                 }
                 new_falls.append(event)
