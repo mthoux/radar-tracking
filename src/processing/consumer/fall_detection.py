@@ -17,8 +17,8 @@ class FallDetector:
         self, 
         fall_threshold_frames=15, 
         valid_zone=(-25, 25, 5, 95),
-        vz_threshold_m_s: float = -0.3,    # m/s — negative = downward
-        vz_window_frames: int = 6,         # frames used for derivative
+        vz_threshold_m_s: float = -0.8,    # m/s — negative = downward
+        vz_window_frames: int = 5,         # frames used for derivative
         require_vz: bool = True,           # set False → disappearance-only (original)
     ):
         self.fall_threshold  = fall_threshold_frames
@@ -43,7 +43,7 @@ class FallDetector:
         self._height_history: dict[int, deque] = {}
  
         # {uid: vz in m/s}
-        self._last_vz: dict[int, float] = {}
+        self._avg_vz: dict[int, float] = {}
 
     # ------------------------------------------------------------------
     # Called by Fuser for each active track
@@ -58,18 +58,28 @@ class FallDetector:
             timestamp = time.time()
  
         if uid not in self._height_history:
-            self._height_history[uid] = deque(maxlen=self.vz_window + 1)
+            self._height_history[uid] = deque(maxlen=self.vz_window)
  
         self._height_history[uid].append((timestamp, height_m))
  
         hist = self._height_history[uid]
-        if len(hist) >= 2:
-            t0, h0 = hist[0]
-            t1, h1 = hist[-1]
-            dt = t1 - t0
-            if dt > 1e-6:
-                self._last_vz[uid] = (h1 - h0) / dt
-                print(f"[SPEED] {self._last_vz[uid]}")
+        n = len(hist)
+
+        if n >= 2:
+            # Vitesses instantanées entre chaque paire consécutive
+            vz_values = []
+            for i in range(1, n):
+                t0, h0 = hist[i - 1]
+                t1, h1 = hist[i]
+                dt = t1 - t0
+                vz_values.append((h1 - h0) / dt)
+
+            if vz_values:
+                # Recompute weights for actual number of valid intervals
+                weights = np.arange(1, len(vz_values) + 1, dtype=float) ** 2
+                weights /= weights.sum()
+                self._avg_vz[uid] = float(np.dot(vz_values, weights))
+                print(f"[SPEED] uid={uid} avg_vz={self._avg_vz[uid]:.3f} m/s")
 
     def update_with_elevation(
         self,
@@ -136,7 +146,6 @@ class FallDetector:
                 height_m = r_height + track_range * sin_el
     
             if now is None:
-                import time
                 now = time.time()
     
             self.update_elevation(uid, height_m, timestamp=now)
@@ -171,7 +180,7 @@ class FallDetector:
             if count > self.fall_threshold + 30:
                 del self.miss_counter[tid]
                 self._height_history.pop(tid, None)
-                self._last_vz.pop(tid, None)
+                self._avg_vz.pop(tid, None)
                 continue
             
             if count >= self.fall_threshold and tid not in self.alerted_ids:
@@ -190,11 +199,11 @@ class FallDetector:
                     )
                     del self.miss_counter[tid]
                     self._height_history.pop(tid, None)
-                    self._last_vz.pop(tid, None)
+                    self._avg_vz.pop(tid, None)
                     continue
                 
                 # ── Vertical-speed gate ──────────────────────────────────────
-                vz = self._last_vz.get(tid, 0.0)
+                vz = self._avg_vz.get(tid, 0.0)
                 if self.require_vz and vz > self.vz_threshold:
                     # Not moving downward fast enough
                     print(
@@ -204,36 +213,15 @@ class FallDetector:
                     )
                     del self.miss_counter[tid]
                     self._height_history.pop(tid, None)
-                    self._last_vz.pop(tid, None)
+                    self._avg_vz.pop(tid, None)
                     continue
-                # peak_speed = self.recent_downward_speed.get(tid, 0.0)
-                # history_len = len(self.centroid_history.get(tid, []))
-                # recent = list(self.centroid_history.get(tid, []))[-RECENT_WINDOW_FOR_SPEED:]
-                # centroid_variance = np.var(recent) if len(recent) >= RECENT_WINDOW_FOR_SPEED else 0.0
-
-                # # Confirm fall:
-                # # Not enough history → trust disappearance alone
-                # if history_len < RECENT_WINDOW_FOR_SPEED:
-                #     print(f"[FALL SKIPPED] track_id={tid} not enough history ({history_len} frames) → ghost detection")
-                #     del self.miss_counter[tid]
-                #     continue
-
-                # # Instant disappearance without enough time to compute vertical speed (very high speed)
-                # elif centroid_variance < MIN_CENTROID_VARIANCE:
-                #     print(f"[FALL WARNING] track_id={tid} low variance ({centroid_variance:.4f}) → instant fall")
-                        
-                # # Track disappeared but did NOT show a fast downward motion
-                # elif peak_speed < self.vert_speed_thresh:
-                #     print(f"[FALL SKIPPED] track_id={tid} peak_speed={peak_speed:.4f} < threshold={self.vert_speed_thresh:.4f}")
-                #     del self.miss_counter[tid]
-                #     continue
                 
                 # Fall register
                 event = {
-                    "track_id":      tid,
+                    "track_id":       tid,
                     "missing_frames": count,
-                    "peak_downward_speed": vz,
-                    "timestamp":      time.time(),
+                    "vz_m_s":         vz,
+                    "timestamp": time.time(),
                 }
                 new_falls.append(event)
                 self.fall_events.append(event)
