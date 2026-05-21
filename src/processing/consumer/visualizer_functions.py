@@ -26,16 +26,15 @@ def configure_ax_bf(ax, phi, r, vmin=0, vmax=0.1):
         The pcolormesh object for the beamforming visualization.
     """
 
-    ax.set_theta_zero_location('E')
-    ax.set_theta_direction(1)
-    ax.set_thetamin(0)
-    ax.set_thetamax(180)
+    ax.set_theta_zero_location('N')
+    ax.set_theta_direction(-1)
+    phi_deg = np.degrees(phi)
+    ax.set_thetamin(np.min(phi_deg))
+    ax.set_thetamax(np.max(phi_deg))
     ax.set_title("Bird Eye View (Top View)")
 
     R, Theta = np.meshgrid(r, phi)
 
-    ax.set_xlim(phi[0], phi[-1])
-    ax.set_ylim(r[0], r[-1])
     ax.grid(False)
 
     num_phi = len(phi)

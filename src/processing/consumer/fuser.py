@@ -54,21 +54,21 @@ class Fuser:
         # PRE-COMPUTATION: Mapping Polar coordinates to Cartesian points once.
         # This prevents costly trigonometric calculations inside the processing loop.
         
-        # Radar 1 Mapping
-        phi1 = np.arctan2(self.Y.ravel(), (self.X - self.x1).ravel()) - self.angle_1
+        # Radar 1 Mapping (Correction de l'ordre arctan2)
+        phi1 = np.arctan2((self.X - self.x1).ravel(), self.Y.ravel()) - self.angle_1
         r1 = np.hypot(self.X.ravel() - self.x1, self.Y.ravel())
         self.pts1 = np.column_stack((phi1, r1))
 
-        # Radar 2 Mapping
-        phi2 = np.arctan2((self.Y).ravel(), (self.X - self.x2).ravel()) - self.angle_2
+        # Radar 2 Mapping (Correction de l'ordre arctan2)
+        phi2 = np.arctan2((self.X - self.x2).ravel(), self.Y.ravel()) - self.angle_2
         r2 = np.hypot(self.X.ravel() - self.x2, self.Y.ravel())
         self.pts2 = np.column_stack((phi2, r2))
 
         # Back-sampling Mapping (Cartesian -> Polar display)
         PHI_MESH, R_MESH = np.meshgrid(self.phi, self.r_idxs, indexing='ij')
         self.pts_back = np.column_stack((
-            (R_MESH * np.sin(PHI_MESH)).ravel(), # y-coord on cartesian grid
-            (R_MESH * np.cos(PHI_MESH)).ravel()  # x-coord on cartesian grid
+            (R_MESH * np.cos(PHI_MESH)).ravel(), # y-coord (profondeur) = R * cos(phi)
+            (R_MESH * np.sin(PHI_MESH)).ravel()  # x-coord (largeur) = R * sin(phi)
         ))
         self.POLAR_SHAPE = PHI_MESH.shape
 
@@ -102,6 +102,7 @@ class Fuser:
         # Smoothing
         self.do_smoothing = cfg_radar["smoothing"]
         self.alpha = cfg_radar["alpha_smoothing"]
+        self.last_Z = None
 
     def _get_latest_from_queues(self):
         """
@@ -140,12 +141,14 @@ class Fuser:
             interp2 = RegularGridInterpolator((self.phi, self.r_idxs), bf_2, bounds_error=False, fill_value=0)
 
             # Map both radars to the same Cartesian space and fuse using Maximum Intensity Projection
-            #Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
-            Z_cart = (interp1(self.pts1) + interp2(self.pts2)).reshape(self.X.shape) / 2.0
+            Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
+            #Z_cart = (interp1(self.pts1) + interp2(self.pts2)).reshape(self.X.shape) / 2.0
 
             # --- PERSISTENCE (Lissage temporel) ---
             if self.do_smoothing:
-                Z_cart = (self.alpha * Z_cart) + ((1 - self.alpha) * Z_cart)
+                if self.last_Z is None: self.last_Z = Z_cart
+                Z_cart = (self.alpha * Z_cart) + ((1 - self.alpha) * self.last_Z)
+                self.last_Z = Z_cart
 
             # On continue le process avec la version lissée
             interp_fused = RegularGridInterpolator((self.y_grid, self.x_grid), Z_cart, bounds_error=False, fill_value=0)
@@ -180,17 +183,17 @@ class Fuser:
                 # 1. On trouve tous les points au-dessus du seuil
                 indices = np.argwhere(to_plot >= self.snr_threshold)
 
-                if len(indices) > 0:
-                    # 2. On récupère les valeurs de SNR pour ces indices
-                    snr_values = to_plot[indices[:, 0], indices[:, 1]]
+                # if len(indices) > 0:
+                #     # 2. On récupère les valeurs de SNR pour ces indices
+                #     snr_values = to_plot[indices[:, 0], indices[:, 1]]
                     
-                    # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
-                    sorted_idx = np.argsort(snr_values)[::-1]
-                    indices = indices[sorted_idx]
+                #     # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
+                #     #sorted_idx = np.argsort(snr_values)[::-1]
+                #     #indices = indices[sorted_idx]
 
                 # 4. Optimization: On garde les 200 meilleurs pour éviter de saturer le tracker
                 detections = [
-                    Detection(r=self.r_idxs[i]*self.range_res, az=self.phi[j], v=0, snr=to_plot[j, i])
+                    Detection(r=self.r_idxs[i]*self.range_res, az=np.pi/2 - self.phi[j], v=0, snr=to_plot[j, i])
                     for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
                 ]
 

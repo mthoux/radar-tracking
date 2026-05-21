@@ -183,8 +183,11 @@ def compute_dbscan(output_top, r_idxs, phi, eps=0.5, min_samples=5, p_treshold= 
     # Build full coordinate grid
     phi_rad_2d, r_idxs_2d = np.meshgrid(phi, r_idxs, indexing='ij')  # shape: (180, 140)
 
-    x_coords_m = np.cos(phi_rad_2d) * r_idxs_2d  # shape: (180, 140)
-    z_coords_m = np.sin(phi_rad_2d) * r_idxs_2d  # shape: (180, 140)
+    #x_coords_m = np.cos(phi_rad_2d) * r_idxs_2d  # shape: (180, 140)
+    #z_coords_m = np.sin(phi_rad_2d) * r_idxs_2d  # shape: (180, 140)
+
+    x_coords_m = r_idxs_2d * np.sin(phi_rad_2d) 
+    z_coords_m = r_idxs_2d * np.cos(phi_rad_2d)
 
     # Flatten for DBSCAN
     points = np.stack([x_coords_m.ravel(), z_coords_m.ravel()], axis=1)

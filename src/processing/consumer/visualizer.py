@@ -53,7 +53,7 @@ class Visualizer(ShowBase):
                 
         # 1. Bird Eye View (Polar)
         self.ax = self.fig.add_subplot(gs[0, 0], projection='polar')
-        self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs)   
+        self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs * cfg_radar["range_res"])   
 
         # pos = self.ax.get_position()
 
@@ -81,12 +81,12 @@ class Visualizer(ShowBase):
 
         # 4. Profil Azimutal (Puissance vs Angle)
         self.ax_azimuth = self.fig.add_subplot(gs[2, 0])
-        self.phi_deg = np.degrees(self.phi) - 90  # On convertit en degrés ET on décale de -90 pour avoir l'échelle [-90, 90]
+        self.phi_deg = np.degrees(self.phi)
         self.line_azimuth, = self.ax_azimuth.plot(self.phi_deg, np.zeros_like(self.phi), color='blue')
         self.ax_azimuth.set_ylim(0, 1.1)
         # Mise à jour auto des limites
         self.ax_azimuth.set_xlim(self.phi_deg[0], self.phi_deg[-1]) 
-        self.ax_azimuth.set_title("Power profil for azimuth (Centered)")
+        self.ax_azimuth.set_title("Power profil for azimuth")
         self.ax_azimuth.set_xlabel("Phi (degrés)")
 
         # Artists and UI elements

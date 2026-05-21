@@ -86,22 +86,23 @@ def main():
     cfg_radar = {
         "range_res": 0.044,
         "range_idx": np.arange(0, 100, 1),
-        "phi": np.deg2rad(np.arange(0, 180, 1)),
+        #"phi": np.deg2rad(np.arange(0, 100, 1)), # fov_angle
+        "phi": np.deg2rad(np.arange(-50, 51, 1)),
         "width": 100,
         "D_x": 0.10, # Distance that separate both radars on axis X (in m)
         "angle_1": np.deg2rad(0),
         "angle_2": np.deg2rad(0),
-        "num_tx": 3,
-        "num_rx": 4,
-        "num_doppler": 16,
-        "num_range": 992,
+        "num_tx": 3,                # Number of TX (for worker)
+        "num_rx": 4,                # Number of RX (for worker)
+        "num_doppler": 16,          # (for worker)
+        "num_range": 992,           # Total number of samples made by the radar (for worker)
         "sample_rate": 5166000,
         "c": 3e8,
         "lm": 3e8 / 77e9, # c / f
         "slope": 70.150e12,
         "do_bg_removal": args.bg_removal,
         "smoothing": True,
-        "alpha_smoothing": 0.5  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux)
+        "alpha_smoothing": 0.5,  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux),
     }
 
     cfg_network = {
@@ -136,7 +137,7 @@ def main():
         max_points=200,                 # max detections per frame
         max_tracks=5,                   # max simultaneous tracks
         dt=0.6,                         # time between frames (s)
-        process_noise=0.5,              # Q spectral density
+        process_noise=0.05,              # Q spectral density
         meas_noise_range=2.0,           # σ² range noise (m²)
         meas_noise_az=1,                # σ² azimuth noise (rad²)
         gating_threshold=6,             # ≈95% gate for 2-DOF chi²
@@ -148,8 +149,8 @@ def main():
         min_snr_threshold=0.005,        # min SNR for new track
         init_state_cov=1.0,             # starting P for new tracks
         det_to_active_count=1,          # hits needed to go ACTIVE
-        det_to_free_count=8,            # misses to drop DETECTION
-        act_to_free_count=10,           # misses to drop ACTIVE
+        det_to_free_count=3,            # misses to drop DETECTION
+        act_to_free_count=3,           # misses to drop ACTIVE
         presence_zones=[],              # e.g. [PresenceZone2D(-10,10,-5,5)]
         pres_on_count=5,                # frames to confirm presence on
         pres_off_count=3                # frames to confirm presence off
