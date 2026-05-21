@@ -166,6 +166,13 @@ class FallDetector:
         x_min, x_max, y_min, y_max = self.valid_zone
         for tid, count in list(self.miss_counter.items()):
 
+            # Clean up tracks that have been gone way too long
+            if count > self.fall_threshold + 30:
+                del self.miss_counter[tid]
+                self._height_history.pop(tid, None)
+                self._last_vz.pop(tid, None)
+                continue
+            
             if count >= self.fall_threshold and tid not in self.alerted_ids:
 
                  # ── Boundary check ───────────────────────────────────────────
@@ -173,16 +180,30 @@ class FallDetector:
                 if pos is None:
                     continue
                 x, y = pos
+
                 if not (x_min <= x <= x_max and y_min <= y <= y_max):
                     # Track exited through boundary → not a fall
+                    print(
+                        f"[FALL SKIPPED] track_id={tid} | "
+                        f"boundary exit at ({x:.1f}, {y:.1f}) — not a fall"
+                    )
                     del self.miss_counter[tid]
+                    self._height_history.pop(tid, None)
+                    self._last_vz.pop(tid, None)
                     continue
                 
                 # ── Vertical-speed gate ──────────────────────────────────────
                 vz = self._last_vz.get(tid, 0.0)
                 if self.require_vz and vz > self.vz_threshold:
                     # Not moving downward fast enough
-                    print(f"[FALL SKIPPED] track_id={tid} vert_speed={vz:.4f} < threshold={self.vz_threshold:.4f}")
+                    print(
+                        f"[FALL SKIPPED] track_id={tid} | "
+                        f"absent {count} frames but vz={vz:.2f} m/s "
+                        f"(threshold={self.vz_threshold:.2f}) — not moving down fast enough"
+                    )
+                    del self.miss_counter[tid]
+                    self._height_history.pop(tid, None)
+                    self._last_vz.pop(tid, None)
                     continue
                 # peak_speed = self.recent_downward_speed.get(tid, 0.0)
                 # history_len = len(self.centroid_history.get(tid, []))
@@ -216,15 +237,12 @@ class FallDetector:
                 new_falls.append(event)
                 self.fall_events.append(event)
                 self.alerted_ids.add(tid)
-                print(f"[FALL DETECTED] track_id={tid} absent depuis {count} frames | vz={vz:.2f} m/s")
+                print(
+                    f"[FALL DETECTED] track_id={tid} | "
+                    f"absent {count} frames | vz={vz:.2f} m/s"
+                )
 
             elif count == 0 and tid in self.alerted_ids:
                 self.alerted_ids.discard(tid)
-
-            # Supprimer les tracks disparues depuis longtemps pour éviter la fuite mémoire
-            if count > self.fall_threshold: #+ 30:
-                del self.miss_counter[tid]
-                self._height_history.pop(tid, None)
-                self._last_vz.pop(tid, None)
 
         return new_falls
