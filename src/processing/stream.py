@@ -88,7 +88,7 @@ def main():
         "range_idx": np.arange(0, 100, 1),
         "phi": np.deg2rad(np.arange(0, 180, 1)),
         "width": 100,
-        "D_x": 10, # Distance that separate both radars on axis X (in m)
+        "D_x": 0.10, # Distance that separate both radars on axis X (in m)
         "angle_1": np.deg2rad(0),
         "angle_2": np.deg2rad(0),
         "num_tx": 3,
@@ -133,26 +133,26 @@ def main():
 
     # Gtrack algorithm configuration
     cfg_gtrack = GTrackConfig2D(
-        max_points=200, # max detections per frame
-        max_tracks=5,   # max simultaneous tracks
-        dt=0.6,         # time between frames (s)
-        process_noise=0.5,  # Q spectral density
-        meas_noise_range=2.0,   # σ² range noise (m²)
-        meas_noise_az=1,        # σ² azimuth noise (rad²)
-        gating_threshold=6, # ≈95% gate for 2-DOF chi²
-        alloc_range_gate=0.3,   # cluster gate (m)
-        alloc_az_gate=np.deg2rad(5),  # cluster gate (rad)
-        alloc_vel_gate=20,          # cluster gate (m/s)
-        min_cluster_points=10,  # you can increase if you want multi-point seeds
-        alloc_snr_threshold=0.5,    # sum-SNR threshold
-        min_snr_threshold=0.005,    # min SNR for new track
-        init_state_cov=1.0,         # starting P for new tracks
-        det_to_active_count=1,      # hits needed to go ACTIVE
-        det_to_free_count=8,        # misses to drop DETECTION
-        act_to_free_count=10,        # misses to drop ACTIVE
-        presence_zones=[],          # e.g. [PresenceZone2D(-10,10,-5,5)]
-        pres_on_count=5,            # frames to confirm presence on
-        pres_off_count=3            # frames to confirm presence off
+        max_points=200,                 # max detections per frame
+        max_tracks=5,                   # max simultaneous tracks
+        dt=0.6,                         # time between frames (s)
+        process_noise=0.5,              # Q spectral density
+        meas_noise_range=2.0,           # σ² range noise (m²)
+        meas_noise_az=1,                # σ² azimuth noise (rad²)
+        gating_threshold=6,             # ≈95% gate for 2-DOF chi²
+        alloc_range_gate=0.5,           # cluster gate (m)
+        alloc_az_gate=np.deg2rad(10),   # cluster gate (rad)
+        alloc_vel_gate=20,              # cluster gate (m/s)
+        min_cluster_points=10,          # you can increase if you want multi-point seeds
+        alloc_snr_threshold=0.5,        # sum-SNR threshold
+        min_snr_threshold=0.005,        # min SNR for new track
+        init_state_cov=1.0,             # starting P for new tracks
+        det_to_active_count=1,          # hits needed to go ACTIVE
+        det_to_free_count=8,            # misses to drop DETECTION
+        act_to_free_count=10,           # misses to drop ACTIVE
+        presence_zones=[],              # e.g. [PresenceZone2D(-10,10,-5,5)]
+        pres_on_count=5,                # frames to confirm presence on
+        pres_off_count=3                # frames to confirm presence off
     )
 
     # cfg_gtrack = GTrackConfig2D(

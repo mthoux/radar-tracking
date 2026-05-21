@@ -42,7 +42,7 @@ def beamform_2d_s(beat_freq_data, radar_params, x_locs, dets):
     r_idxs = radar_params["range_idx"]
 
     # Compute the phase shifts for each azimuth angle
-    angles = x_locs * np.cos(phi[:, np.newaxis])
+    angles = x_locs * np.sin(phi[:, np.newaxis])
     phase_shifts = np.exp((1j * 2 * np.pi / lm) * angles)
 
     # Initialize the spherical power array
