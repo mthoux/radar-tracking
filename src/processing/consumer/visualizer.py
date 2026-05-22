@@ -124,7 +124,7 @@ class Visualizer(ShowBase):
         if data is not None:
 
             # 1. Update Heatmap & Tracks
-            self.im.set_array(data["heatmap"].ravel())
+            self.im.set_array(np.flipud(data["heatmap"]).ravel())
             update_ax_gtrack(self.ax_3, data["tracks"], self.last_artists)
 
             # Update Profile 1D ---
