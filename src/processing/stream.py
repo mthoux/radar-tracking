@@ -105,7 +105,7 @@ def main():
         "lm": 3e8 / 77e9, # c / f
         "slope": 70.150e12,
         "do_bg_removal": args.bg_removal,
-        "radar_mount_height": 0.85,   # metres — set to 0.0 if radar is on the floor
+        "radar_mount_height": 0.8,   # metres — set to 0.0 if radar is on the floor
     }
 
     cfg_network = {
@@ -134,7 +134,7 @@ def main():
     cfg_gtrack = GTrackConfig2D(
         max_points=200,
         max_tracks=5,
-        dt=0.6,
+        dt=0.5,
         process_noise=0.5,
         meas_noise_range=2.0,
         meas_noise_az=1,

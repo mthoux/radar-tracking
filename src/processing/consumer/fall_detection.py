@@ -3,6 +3,8 @@ import time
 from collections import deque
 from typing import Dict, Set, List, Tuple, Optional
 
+FALL_WINDOW = 3
+
 class FallDetector:
     """
     Détecte les chutes en surveillant la disparition prolongée de tracks.
@@ -65,17 +67,21 @@ class FallDetector:
         hist = self._height_history[uid]
         n = len(hist)
 
-        if n >= 2:
+        if n >= FALL_WINDOW:
             # ------ Regression linéaire ------------
-            hist = list(self._height_history[uid])
-            times   = np.array([t for t, h in hist])
-            heights = np.array([h for t, h in hist])
+            recent_hist = list(self._height_history[uid])[-FALL_WINDOW:]
+            times   = np.array([t for t, h in recent_hist])
+            heights = np.array([h for t, h in recent_hist])
 
             # Centrer les temps pour la stabilité numérique
             times -= times[0]
 
-            vz = np.polyfit(times, heights, deg=1)[0]
-            self._avg_vz[uid] = float(vz)
+            vz_current = np.polyfit(times, heights, deg=1)[0]
+            vz_prev = self._avg_vz.get(uid, vz_current)
+            
+            # Weighted average
+            weights = np.array([0.4, 0.6])
+            self._avg_vz[uid] = float(float(np.dot([vz_prev, vz_current], weights)))
             print(f"[SPEED] uid={uid} avg_vz={self._avg_vz[uid]:.3f} m/s")
             # ------ FIN ----------------------------
 
