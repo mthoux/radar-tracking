@@ -2,45 +2,14 @@ import numpy as np
 
 
 def sph2cart_2d(r, az):
-    """
-    Convert spherical coordinates (r, azimuth) to Cartesian coordinates (x, y) in 2D.
-
-    Parameters
-    ----------
-    r : float or np.ndarray
-        The radial distance.
-    az : float or np.ndarray
-        The azimuth angle in radians.
-
-    Returns
-    -------
-    np.ndarray
-        The Cartesian coordinates as a 2D array [x, y].
-    """
-
-    return np.array([r * np.cos(az), r * np.sin(az)])
+    # Radar convention: az=0 is forward (Y axis), positive az is right (X axis)
+    # x = r*sin(az),  y = r*cos(az)
+    return np.array([r * np.sin(az), r * np.cos(az)])
 
 def cart2sph_2d(x, y):
-    """
-    Convert Cartesian coordinates (x, y) to spherical coordinates (r, azimuth) in 2D.
-
-    Parameters
-    ----------
-    x : float or np.ndarray
-        The x-coordinate.
-    y : float or np.ndarray
-        The y-coordinate.
-
-    Returns
-    -------
-    r : float or np.ndarray
-        The radial distance.
-    az : float or np.ndarray
-        The azimuth angle in radians.
-    """
-
+    # Inverse: az = atan2(x, y)
     r = np.hypot(x, y)
-    az = np.arctan2(y, x)
+    az = np.arctan2(x, y)
     return r, az
 
 def calc_gating_limits_2d(P, H, R=None):

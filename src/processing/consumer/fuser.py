@@ -197,10 +197,8 @@ class Fuser:
                 #     for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
                 # ]
                 
-                phi_flipped = self.phi[::-1]  # match the flip applied to Z_polar
-
                 detections = [
-                    Detection(r=self.r_idxs[i]*self.range_res, az=phi_flipped[j], v=0, snr=to_plot[j, i])
+                    Detection(r=self.r_idxs[i]*self.range_res, az=self.phi[j], v=0, snr=to_plot[j, i])
                     for j, i in indices[:200]
                 ]
 
