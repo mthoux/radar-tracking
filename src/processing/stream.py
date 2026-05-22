@@ -134,7 +134,7 @@ def main():
     cfg_gtrack = GTrackConfig2D(
         max_points=200,
         max_tracks=5,
-        dt=0.5,
+        dt=0.4,
         process_noise=0.5,
         meas_noise_range=2.0,
         meas_noise_az=1,
