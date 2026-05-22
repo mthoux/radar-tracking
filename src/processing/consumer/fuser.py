@@ -22,7 +22,7 @@ class Fuser:
     and target tracking using GTrack.
     """
 
-    def __init__(self, queue_1: Any, queue_2: Any, queue_out: Any, cfg_radar: Dict[str, Any], cfg_gtrack: Any):
+    def __init__(self, queue_1: Any, queue_2: Any, queue_out: Any, cfg_radar: Dict[str, Any], cfg_gtrack: Any, cfg_arduino):
         """
         Initializes the processor with radar geometry and tracking configurations.
         """
@@ -38,10 +38,12 @@ class Fuser:
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
         self.snr_threshold = cfg_gtrack.min_snr_threshold
+        self.range_res = cfg_radar["range_res"]
+ 
+        # ---------- FUSION DEFINITIONS ----------
         
         # Geometric Offsets
-        self.x1, self.y1 = cfg_radar["offset_x_1"], cfg_radar["offset_y_1"]
-        self.x2, self.y2 = cfg_radar["offset_x_2"], cfg_radar["offset_y_2"]
+        self.x1, self.x2 = +cfg_radar["D_x"]/2 * self.range_res,  -cfg_radar["D_x"]/2 * self.range_res # convert in bins
         self.angle_1, self.angle_2 = cfg_radar["angle_1"], cfg_radar["angle_2"]
 
         # Define Cartesian Grid for Fusion
@@ -49,37 +51,37 @@ class Fuser:
         self.y_grid = self.r_idxs
         self.X, self.Y = np.meshgrid(self.x_grid, self.y_grid, indexing='xy')
 
-        # GTrack Module Initialization
-        self.tracker = GTrackModule2D(cfg_gtrack)
-
-        # Récupération de l'option (True par défaut si absente de la config)
-        self.do_bg_removal = cfg_radar.get("do_bg_removal", True)
-        
-        # Background / Clutter Removal State
-        self.CLUTTER_LEARN_LIMIT = 50
-        self.clutter_frames: List[np.ndarray] = []
-        self.clutter_map: np.ndarray = None
-
         # PRE-COMPUTATION: Mapping Polar coordinates to Cartesian points once.
         # This prevents costly trigonometric calculations inside the processing loop.
         
-        # Radar 1 Mapping
-        phi1 = np.arctan2((self.Y - self.y1).ravel(), (self.X - self.x1).ravel()) - self.angle_1
-        r1 = np.hypot(self.X.ravel() - self.x1, self.Y.ravel() - self.y1)
+        # Radar 1 Mapping (Correction de l'ordre arctan2)
+        phi1 = np.arctan2((self.X - self.x1).ravel(), self.Y.ravel()) - self.angle_1
+        r1 = np.hypot(self.X.ravel() - self.x1, self.Y.ravel())
         self.pts1 = np.column_stack((phi1, r1))
 
-        # Radar 2 Mapping
-        phi2 = np.arctan2((self.Y - self.y2).ravel(), (self.X - self.x2).ravel()) - self.angle_2
-        r2 = np.hypot(self.X.ravel() - self.x2, self.Y.ravel() - self.y2)
+        # Radar 2 Mapping (Correction de l'ordre arctan2)
+        phi2 = np.arctan2((self.X - self.x2).ravel(), self.Y.ravel()) - self.angle_2
+        r2 = np.hypot(self.X.ravel() - self.x2, self.Y.ravel())
         self.pts2 = np.column_stack((phi2, r2))
 
         # Back-sampling Mapping (Cartesian -> Polar display)
         PHI_MESH, R_MESH = np.meshgrid(self.phi, self.r_idxs, indexing='ij')
         self.pts_back = np.column_stack((
-            (R_MESH * np.sin(PHI_MESH)).ravel(), # y-coord on cartesian grid
-            (R_MESH * np.cos(PHI_MESH)).ravel()  # x-coord on cartesian grid
+            (R_MESH * np.cos(PHI_MESH)).ravel(), # y-coord (profondeur) = R * cos(phi)
+            (R_MESH * np.sin(PHI_MESH)).ravel()  # x-coord (largeur) = R * sin(phi)
         ))
         self.POLAR_SHAPE = PHI_MESH.shape
+
+        # ----------------------------------------
+
+        # GTrack Module Initialization
+        self.tracker = GTrackModule2D(cfg_gtrack)
+        
+        # Background / Clutter Removal State
+        self.do_bg_removal = cfg_radar["do_bg_removal"]
+        self.CLUTTER_LEARN_LIMIT = 50
+        self.clutter_frames: List[np.ndarray] = []
+        self.clutter_map: np.ndarray = None
 
         # Initialisation du détecteur de chute
         self.fall_detector = FallDetector(fall_threshold_frames=20)
@@ -91,15 +93,16 @@ class Fuser:
         # ARDUINO OPTIONNEL
         self.arduino = None
         try:
-            # Remplace 'COM3' par ton port (ex: '/dev/ttyACM0' sur Linux)
-            self.arduino = serial.Serial('/dev/tty.usbmodem1401', 9600, timeout=0.1)
-            print("✅ Arduino détecté et connecté.")
+            self.arduino = serial.Serial(cfg_arduino["port"], 9600, timeout=0.1)
+            print("✅ Arduino detected and connected.")
         except Exception as e:
-            print(f"⚠️ Arduino non détecté : {e}. Mode sans LED activé.")
+            if cfg_arduino["warning"]:
+                print(f"⚠️ Arduino not detected : {e}. Streaming without physical response.")
 
-        # Dans le __init__
-        self.smooth_heatmap = None
-        self.alpha = 0.5  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux)
+        # Smoothing
+        self.do_smoothing = cfg_radar["smoothing"]
+        self.alpha = cfg_radar["alpha_smoothing"]
+        self.last_Z = None
 
     def _get_latest_from_queues(self):
         """
@@ -138,20 +141,19 @@ class Fuser:
             interp2 = RegularGridInterpolator((self.phi, self.r_idxs), bf_2, bounds_error=False, fill_value=0)
 
             # Map both radars to the same Cartesian space and fuse using Maximum Intensity Projection
-            #Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
-            Z_cart = (interp1(self.pts1) + interp2(self.pts2)).reshape(self.X.shape) / 2.0
+            Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
+            #Z_cart = (interp1(self.pts1) + interp2(self.pts2)).reshape(self.X.shape) / 2.0
 
             # --- PERSISTENCE (Lissage temporel) ---
-            if self.smooth_heatmap is None:
-                self.smooth_heatmap = Z_cart
-            else:
-                # On mélange l'ancienne et la nouvelle frame
-                self.smooth_heatmap = (self.alpha * Z_cart) + ((1 - self.alpha) * self.smooth_heatmap)
+            if self.do_smoothing:
+                if self.last_Z is None: self.last_Z = Z_cart
+                Z_cart = (self.alpha * Z_cart) + ((1 - self.alpha) * self.last_Z)
+                self.last_Z = Z_cart
 
             # On continue le process avec la version lissée
-            interp_fused = RegularGridInterpolator((self.y_grid, self.x_grid), self.smooth_heatmap, bounds_error=False, fill_value=0)
+            interp_fused = RegularGridInterpolator((self.y_grid, self.x_grid), Z_cart, bounds_error=False, fill_value=0)
        
-            Z_polar = np.flip(interp_fused(self.pts_back).reshape(self.POLAR_SHAPE), axis=0)
+            Z_polar = interp_fused(self.pts_back).reshape(self.POLAR_SHAPE)
 
             # Normalize 
             to_plot = np.abs(Z_polar)
@@ -181,22 +183,39 @@ class Fuser:
                 # 1. On trouve tous les points au-dessus du seuil
                 indices = np.argwhere(to_plot >= self.snr_threshold)
 
-                if len(indices) > 0:
-                    # 2. On récupère les valeurs de SNR pour ces indices
-                    snr_values = to_plot[indices[:, 0], indices[:, 1]]
+                # if len(indices) > 0:
+                #     # 2. On récupère les valeurs de SNR pour ces indices
+                #     snr_values = to_plot[indices[:, 0], indices[:, 1]]
                     
-                    # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
-                    sorted_idx = np.argsort(snr_values)[::-1]
-                    indices = indices[sorted_idx]
+                #     # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
+                #     #sorted_idx = np.argsort(snr_values)[::-1]
+                #     #indices = indices[sorted_idx]
 
-                # 4. Optimization: On garde les 200 meilleurs pour éviter de saturer le tracker
+                # 4. Optimization: On garde les 200 m   eilleurs pour éviter de saturer le tracker
+                # detections = [
+                #     Detection(r=self.r_idxs[i]*self.range_res, az=np.pi/2 - self.phi[j], v=0, snr=to_plot[j, i])
+                #     for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
+                # ]
+                
                 detections = [
-                    Detection(r=self.r_idxs[i], az=self.phi[j], v=0, snr=to_plot[j, i])
-                    for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
+                    Detection(r=self.r_idxs[i]*self.range_res, az=self.phi[j], v=0, snr=to_plot[j, i])
+                    for j, i in indices[:200]
                 ]
+
+                if len(detections) > 0:
+                    azs = [d.azimuth for d in detections]
+                    rs  = [d.range   for d in detections]
+                    print(f"[DET] n={len(detections)}  az: min={np.degrees(min(azs)):.1f}°  max={np.degrees(max(azs)):.1f}°  mean={np.degrees(np.mean(azs)):.1f}°")
+                    print(f"[DET]                       r:  min={min(rs):.2f}m   max={max(rs):.2f}m   mean={np.mean(rs):.2f}m")
+                    print(f"[DET] phi array: [{np.degrees(self.phi[0]):.1f}° ... {np.degrees(self.phi[-1]):.1f}°]")
+                    print(f"[DET] to_plot shape={to_plot.shape}  nonzero above threshold={len(indices)}")
 
                 gtrack_output = self.tracker.step(detections)
                 tracks = gtrack_output.get('tracks', [])
+
+                # DEBUG
+                for t in tracks:
+                    print(f"[TRACK] uid={t['uid']} status={t['status']} pos=({t['pos'][0]:.2f}, {t['pos'][1]:.2f})")
 
             # --- LOGIQUE DE DETECTION DE CHUTE (Dans Fuser.py) ---
             if is_learning:
@@ -215,20 +234,12 @@ class Fuser:
             # --- LOGIQUE LED ARDUINO ---
             if self.arduino:
                 try:
-                    # Gestion Tracking (LED Verte/Standard)
-                    self.arduino.write(b'1' if tracks else b'0')
-                    
-                    # Gestion Chute (LED Rouge)
-                    # On allume si des événements de chute sont détectés dans cette frame
-                    if fall_events:
-                        self.arduino.write(b'F')
-                    else:
-                        # Optionnel : tu peux décider de laisser la LED allumée 
-                        # jusqu'à ce qu'un bouton soit pressé, ou l'éteindre si aucune chute n'est active
-                        self.arduino.write(b'N')
+                    self.arduino.write(b'1' if tracks else b'0') # Write Green LED for tracking
+                    if fall_events: self.arduino.write(b'F') # Write red LED for falls
+                    else: self.arduino.write(b'N') # Shutdown red LED when no more falls
                 except:
                     self.arduino = None
-                    print("❌ Connexion Arduino perdue.")
+                    print("❌ Lost connection with Arduino.")
 
             # --- CALCUL DES PROFILS ---
             range_profile = np.max(to_plot, axis=0)

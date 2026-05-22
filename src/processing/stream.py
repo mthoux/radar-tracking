@@ -15,16 +15,16 @@ from .consumer.fuser import Fuser
 warnings.simplefilter("ignore", UserWarning)
 sys.coinit_flags = 2  # Multithreading concurrency mode for COM
 
-def consumer(q_radar1, q_radar2, cfg_radar, cfg_gtrack, stop_event):
+def consumer(q_radar1, q_radar2, cfg_radar, cfg_gtrack, stop_event, cfg_arduino):
     q_results = Queue(maxsize=1)
 
-    fuser = Fuser(q_radar1, q_radar2, q_results, cfg_radar, cfg_gtrack)
+    fuser = Fuser(q_radar1, q_radar2, q_results, cfg_radar, cfg_gtrack, cfg_arduino)
     visualizer = Visualizer(q_results, cfg_radar, stop_event)
     
     visualizer.taskMgr.add(fuser.process, "RadarProcessingTask")
     visualizer.run()
 
-def launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network) -> None:
+def launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network, cfg_arduino) -> None:
    
     q_main_1 = Queue(maxsize=1)
     q_main_2 = Queue(maxsize=1)
@@ -47,7 +47,7 @@ def launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network) -> None:
     data_consumer = Process(
         name="Consumer",
         target=consumer, 
-        args=(q_main_1, q_main_2, cfg_radar, cfg_gtrack, stop_event), 
+        args=(q_main_1, q_main_2, cfg_radar, cfg_gtrack, stop_event, cfg_arduino), 
         daemon=True
     )
 
@@ -84,27 +84,25 @@ def main():
     args = parser.parse_args()
 
     cfg_radar = {
-        "nb_radar" : 1,
         "range_res": 0.044,
         "range_idx": np.arange(0, 100, 1),
-        "phi": np.deg2rad(np.arange(0, 180, 1)),
-        "width": 100,
-        "offset_x_1": +int(10 / (0.044 * 100)), #cm to idx : int(cm / (range_res_m * 100))
-        "offset_x_2": -int(10 / (0.044 * 100)),
-        "offset_y_1": 0.0,
-        "offset_y_2": 0.0,
+        #"phi": np.deg2rad(np.arange(0, 100, 1)), # fov_angle
+        "phi": np.deg2rad(np.arange(-50, 51, 1)),
+        "width": 50,
+        "D_x": 0.70, # Distance that separate both radars on axis X (in m)
         "angle_1": np.deg2rad(0),
         "angle_2": np.deg2rad(0),
-        "n_radar": 2,
-        "num_tx": 3,
-        "num_rx": 4,
-        "num_doppler": 16,
-        "num_range": 992,
+        "num_tx": 3,                # Number of TX (for worker)
+        "num_rx": 4,                # Number of RX (for worker)
+        "num_doppler": 16,          # (for worker)
+        "num_range": 992,           # Total number of samples made by the radar (for worker)
         "sample_rate": 5166000,
         "c": 3e8,
         "lm": 3e8 / 77e9, # c / f
         "slope": 70.150e12,
-        "do_bg_removal": args.bg_removal
+        "do_bg_removal": args.bg_removal,
+        "smoothing": True,
+        "alpha_smoothing": 0.5,  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux),
     }
 
     cfg_network = {
@@ -129,28 +127,33 @@ def main():
         "threshold_scale": 1e-3
     }
 
+    cfg_arduino = {
+        "port": "/dev/tty.usbmodem1401",
+        "warning": False
+    }
+
     # Gtrack algorithm configuration
     cfg_gtrack = GTrackConfig2D(
-        max_points=200, # max detections per frame
-        max_tracks=5,   # max simultaneous tracks
-        dt=0.6,         # time between frames (s)
-        process_noise=0.5,  # Q spectral density
-        meas_noise_range=2.0,   # σ² range noise (m²)
-        meas_noise_az=1,        # σ² azimuth noise (rad²)
-        gating_threshold=6, # ≈95% gate for 2-DOF chi²
-        alloc_range_gate=0.3,   # cluster gate (m)
-        alloc_az_gate=np.deg2rad(5),  # cluster gate (rad)
-        alloc_vel_gate=20,          # cluster gate (m/s)
-        min_cluster_points=10,  # you can increase if you want multi-point seeds
-        alloc_snr_threshold=0.5,    # sum-SNR threshold
-        min_snr_threshold=0.005,    # min SNR for new track
-        init_state_cov=1.0,         # starting P for new tracks
-        det_to_active_count=1,      # hits needed to go ACTIVE
-        det_to_free_count=8,        # misses to drop DETECTION
-        act_to_free_count=10,        # misses to drop ACTIVE
-        presence_zones=[],          # e.g. [PresenceZone2D(-10,10,-5,5)]
-        pres_on_count=5,            # frames to confirm presence on
-        pres_off_count=3            # frames to confirm presence off
+        max_points=200,                 # max detections per frame
+        max_tracks=5,                   # max simultaneous tracks
+        dt=0.6,                         # time between frames (s)
+        process_noise=0.05,              # Q spectral density
+        meas_noise_range=2.0,           # σ² range noise (m²)
+        meas_noise_az=1,                # σ² azimuth noise (rad²)
+        gating_threshold=6,             # ≈95% gate for 2-DOF chi²
+        alloc_range_gate=0.5,           # cluster gate (m)
+        alloc_az_gate=np.deg2rad(10),   # cluster gate (rad)
+        alloc_vel_gate=20,              # cluster gate (m/s)
+        min_cluster_points=10,          # you can increase if you want multi-point seeds
+        alloc_snr_threshold=0.5,        # sum-SNR threshold
+        min_snr_threshold=0.005,        # min SNR for new track
+        init_state_cov=1.0,             # starting P for new tracks
+        det_to_active_count=1,          # hits needed to go ACTIVE
+        det_to_free_count=3,            # misses to drop DETECTION
+        act_to_free_count=3,           # misses to drop ACTIVE
+        presence_zones=[],              # e.g. [PresenceZone2D(-10,10,-5,5)]
+        pres_on_count=5,                # frames to confirm presence on
+        pres_off_count=3                # frames to confirm presence off
     )
 
     # cfg_gtrack = GTrackConfig2D(
@@ -177,7 +180,7 @@ def main():
     # )
 
     print("⌛️ Starting streaming...")
-    launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network)
+    launch_pipeline(cfg_radar, cfg_gtrack, cfg_cfar, cfg_network, cfg_arduino)
 
 if __name__ == "__main__":
     main()

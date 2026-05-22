@@ -32,3 +32,17 @@ radar-tracking/
 ## Licence
 
 MIT License
+
+# Usage
+
+Start streaming with executing ./stream.sh 
+
+Start giving it the rights : chmod +x ./stream.sh
+
+Launch first with -init flag to launch the data acquisition of the radars : ./stream.sh -init
+
+When radars started you can then simply type ./stream.sh to launch streaming and processing again without the need of starting radar if already running.
+
+# References 
+
+AWR1843BOOST DOC : https://www.ti.com/lit/ug/tidueo9/tidueo9.pdf?ts=1779243139006
