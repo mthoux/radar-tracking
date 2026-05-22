@@ -202,8 +202,20 @@ class Fuser:
                     for j, i in indices[:200]
                 ]
 
+                if len(detections) > 0:
+                    azs = [d.azimuth for d in detections]
+                    rs  = [d.range   for d in detections]
+                    print(f"[DET] n={len(detections)}  az: min={np.degrees(min(azs)):.1f}°  max={np.degrees(max(azs)):.1f}°  mean={np.degrees(np.mean(azs)):.1f}°")
+                    print(f"[DET]                       r:  min={min(rs):.2f}m   max={max(rs):.2f}m   mean={np.mean(rs):.2f}m")
+                    print(f"[DET] phi array: [{np.degrees(self.phi[0]):.1f}° ... {np.degrees(self.phi[-1]):.1f}°]")
+                    print(f"[DET] to_plot shape={to_plot.shape}  nonzero above threshold={len(indices)}")
+
                 gtrack_output = self.tracker.step(detections)
                 tracks = gtrack_output.get('tracks', [])
+
+                # DEBUG
+                for t in tracks:
+                    print(f"[TRACK] uid={t['uid']} status={t['status']} pos=({t['pos'][0]:.2f}, {t['pos'][1]:.2f})")
 
             # --- LOGIQUE DE DETECTION DE CHUTE (Dans Fuser.py) ---
             if is_learning:
