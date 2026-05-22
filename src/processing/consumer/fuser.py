@@ -191,10 +191,17 @@ class Fuser:
                 #     #sorted_idx = np.argsort(snr_values)[::-1]
                 #     #indices = indices[sorted_idx]
 
-                # 4. Optimization: On garde les 200 meilleurs pour éviter de saturer le tracker
+                # 4. Optimization: On garde les 200 m   eilleurs pour éviter de saturer le tracker
+                # detections = [
+                #     Detection(r=self.r_idxs[i]*self.range_res, az=np.pi/2 - self.phi[j], v=0, snr=to_plot[j, i])
+                #     for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
+                # ]
+                
+                phi_flipped = self.phi[::-1]  # match the flip applied to Z_polar
+
                 detections = [
-                    Detection(r=self.r_idxs[i]*self.range_res, az=np.pi/2 - self.phi[j], v=0, snr=to_plot[j, i])
-                    for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
+                    Detection(r=self.r_idxs[i]*self.range_res, az=phi_flipped[j], v=0, snr=to_plot[j, i])
+                    for j, i in indices[:200]
                 ]
 
                 gtrack_output = self.tracker.step(detections)

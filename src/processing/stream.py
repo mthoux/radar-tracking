@@ -88,7 +88,7 @@ def main():
         "range_idx": np.arange(0, 100, 1),
         #"phi": np.deg2rad(np.arange(0, 100, 1)), # fov_angle
         "phi": np.deg2rad(np.arange(-50, 51, 1)),
-        "width": 100,
+        "width": 50,
         "D_x": 0.70, # Distance that separate both radars on axis X (in m)
         "angle_1": np.deg2rad(0),
         "angle_2": np.deg2rad(0),

@@ -77,7 +77,7 @@ def configure_ax_gtrack(ax, width, rgd, range_res):
     max_y = rgd * range_res
 
     ax.set_xlim(-width, width)
-    ax.set_ylim(max_y, 0)
+    ax.set_ylim(0, max_y)
     ax.set_xlabel("X position")
     ax.set_ylabel("Y position (m)")
     ax.set_title("GTRACK")
