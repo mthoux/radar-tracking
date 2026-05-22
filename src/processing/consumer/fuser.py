@@ -153,7 +153,7 @@ class Fuser:
             # On continue le process avec la version lissée
             interp_fused = RegularGridInterpolator((self.y_grid, self.x_grid), Z_cart, bounds_error=False, fill_value=0)
        
-            Z_polar = (interp_fused(self.pts_back).reshape(self.POLAR_SHAPE), axis=0)
+            Z_polar = interp_fused(self.pts_back).reshape(self.POLAR_SHAPE)
 
             # Normalize 
             to_plot = np.abs(Z_polar)
