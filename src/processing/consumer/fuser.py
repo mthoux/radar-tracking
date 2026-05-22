@@ -174,7 +174,7 @@ class Fuser:
                     to_plot = np.clip(to_plot - self.clutter_map, 0, None)
 
             # Sharpen the heatmap for point detection
-            to_plot = to_plot ** 6
+            to_plot = to_plot ** 8
 
             # --- GTRACKING ---
             if is_learning:
