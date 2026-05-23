@@ -136,6 +136,10 @@ class Fuser:
         if has_new_data and all(self.msg_ready):
             bf_1, bf_2 = self.latest_msg[0], self.latest_msg[1]
             
+            # Normalize each radar's polar map first to ensure they contribute equally to the fusion, regardless of their individual SNR scales.
+            bf_1 = bf_1 / (np.max(bf_1) + 1e-9)
+            bf_2 = bf_2 / (np.max(bf_2) + 1e-9)
+            
             # --- FUSION ENGINE ---
             # Instantiate interpolators (Note: Moving to map_coordinates would be even faster)
             interp1 = RegularGridInterpolator((self.phi, self.r_idxs), bf_1, bounds_error=False, fill_value=0)
