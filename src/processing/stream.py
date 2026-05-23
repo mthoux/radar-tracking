@@ -135,7 +135,7 @@ def main():
     # Gtrack algorithm configuration
     cfg_gtrack = GTrackConfig2D(
         max_points=200,                 # max detections per frame
-        max_tracks=5,                   # max simultaneous tracks
+        max_tracks=3,                   # max simultaneous tracks
         dt=0.6,                         # time between frames (s)
         process_noise=0.05,              # Q spectral density
         meas_noise_range=2.0,           # σ² range noise (m²)
@@ -144,7 +144,7 @@ def main():
         alloc_range_gate=0.5,           # cluster gate (m)
         alloc_az_gate=np.deg2rad(10),   # cluster gate (rad)
         alloc_vel_gate=20,              # cluster gate (m/s)
-        min_cluster_points=10,          # you can increase if you want multi-point seeds
+        min_cluster_points=4,          # you can increase if you want multi-point seeds
         alloc_snr_threshold=0.5,        # sum-SNR threshold
         min_snr_threshold=0.005,        # min SNR for new track
         init_state_cov=1.0,             # starting P for new tracks
