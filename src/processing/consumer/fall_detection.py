@@ -120,11 +120,14 @@ class FallDetector:
         * Collect CFAR detections that GTrack assigned to this track.
         GTrack stores the list of Detection objects in t['points'] if you
         expose them from GTrackUnit2D.report() — see note below.
-        * For each detection: height = detection.range * sin_el[d_idx, r_idx]
+        * For each detection: height = r_height + detection.range * sin_el[r_bin]
         * Take the SNR-weighted mean as the track height estimate.
-    
+
         If t['points'] is not available we fall back to using the track's
         range (distance from origin) and the mean sin_el at that range bin.
+
+        sin_el_1 and sin_el_2 are the full unmasked elevation maps (shape: N_doppler x N_range),
+        so every bin has a valid elevation value regardless of CFAR detections.
     
         NOTE: to get t['points'] add this line to GTrackUnit2D.report():
             out['points'] = list(self.associated_points)   # Detection objects
@@ -143,7 +146,8 @@ class FallDetector:
                 heights = []
                 weights = []
                 for pt in points:
-                    r_bin = int(np.round(pt.range))
+                    # Convert detection range (metres) to bin index
+                    r_bin = int(np.round(pt.range / range_res))
                     r_bin = np.clip(r_bin, 0, sin_el_1.shape[1] - 1)
                     d_bin = int(np.round(getattr(pt, 'd_idx', 0)))
                     d_bin = np.clip(d_bin, 0, sin_el_1.shape[0] - 1)
@@ -163,26 +167,12 @@ class FallDetector:
                 track_range = float(np.hypot(x, y))
                 r_bin = int(np.round(track_range / range_res))
                 r_bin = np.clip(r_bin, 0, sin_el_1.shape[1] - 1)
-                # sin_el = 0.5 * (
-                #     np.mean(sin_el_1[:, r_bin]) + np.mean(sin_el_2[:, r_bin])
-                # )
-                # height_m = r_height + track_range * sin_el
-                
-                # Prendre uniquement les bins doppler détectés à ce range bin
-                dets_at_r1 = sin_el_1[:, r_bin]
-                dets_at_r2 = sin_el_2[:, r_bin]
-                
-                nonzero_1 = dets_at_r1[dets_at_r1 != 0]
-                nonzero_2 = dets_at_r2[dets_at_r2 != 0]
-                
-                if len(nonzero_1) > 0 or len(nonzero_2) > 0:
-                    all_nonzero = np.concatenate([nonzero_1, nonzero_2]) if len(nonzero_1) > 0 and len(nonzero_2) > 0 else (nonzero_1 if len(nonzero_1) > 0 else nonzero_2)
-                    sin_el = float(np.mean(all_nonzero))
-                else:
-                    sin_el = 0.0
 
+                # Average the two radar elevation maps at this range bin
+                sin_el = 0.5 * (np.mean(sin_el_1[:, r_bin]) + np.mean(sin_el_2[:, r_bin]))
                 height_m = r_height + track_range * sin_el
-                print(f"[ELEV] uid={uid} | r_bin={r_bin} | sin_el={sin_el:.4f} | height={height_m:.3f}m")
+
+            print(f"[ELEV] uid={uid} | r_bin={r_bin} | sin_el={sin_el:.4f} | height={height_m:.3f}m")
     
             if now is None:
                 now = time.time()
