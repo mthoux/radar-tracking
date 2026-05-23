@@ -136,10 +136,6 @@ class Fuser:
         if has_new_data and all(self.msg_ready):
             bf_1, bf_2 = self.latest_msg[0], self.latest_msg[1]
             
-            # Normalize each radar's polar map first to ensure they contribute equally to the fusion, regardless of their individual SNR scales.
-            bf_1 = bf_1 / (np.max(bf_1) + 1e-9)
-            bf_2 = bf_2 / (np.max(bf_2) + 1e-9)
-            
             # --- FUSION ENGINE ---
             # Instantiate interpolators (Note: Moving to map_coordinates would be even faster)
             interp1 = RegularGridInterpolator((self.phi, self.r_idxs), bf_1, bounds_error=False, fill_value=0)
@@ -194,10 +190,12 @@ class Fuser:
                         print("Background subtraction completed")
                 elif self.clutter_map is not None:
                     to_plot = np.clip(to_plot - self.clutter_map, 0, None)
-                    # Re-normalize after subtraction so sharpening works correctly
+                    # Only renormalize if there's meaningful signal
                     norm_factor2 = np.max(to_plot)
-                    if norm_factor2 > 0:
+                    if norm_factor2 > 0.1:  # threshold — only normalize real signal
                         to_plot /= norm_factor2
+                    else:
+                        to_plot[:] = 0.0  # nothing meaningful → zero out entirely
             
             # Normalize after background removal to maintain consistent SNR thresholds
             # norm_factor = np.max(to_plot)
