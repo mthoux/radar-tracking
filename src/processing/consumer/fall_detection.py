@@ -42,8 +42,8 @@ class FallDetector:
         # {uid: deque of (timestamp, height_m)}
         self._height_history: dict[int, deque] = {}
  
-        # {uid: vz in m/s}
-        self._avg_vz: dict[int, float] = {}
+        # {uid: deque of raw vz values}
+        self._vz_history: dict[int, deque] = {}
 
     # ------------------------------------------------------------------
     # Called by Fuser for each active track
@@ -96,12 +96,17 @@ class FallDetector:
                     vz_values.append(vz)
 
             if vz_values:
-                # Recompute weights for actual number of valid intervals
-                weights = np.arange(1, len(vz_values) + 1, dtype=float) ** 2
-                weights /= weights.sum()
-                # weights = np.array([0.15, 0.35, 0.5])
-                self._avg_vz[uid] = float(np.dot(vz_values, weights))
-                print(f"[SPEED] uid={uid} avg_vz={self._avg_vz[uid]:.3f} m/s")
+                if uid not in self._vz_history:
+                    self._vz_history[uid] = deque(maxlen=self.vz_window)
+                # Store the most recent raw vz
+                self._vz_history[uid].append(vz_values[-1])
+                print(f"[SPEED] uid={uid} last_vz={vz_values[-1]:.3f} m/s")
+                # # Recompute weights for actual number of valid intervals
+                # weights = np.arange(1, len(vz_values) + 1, dtype=float) ** 2
+                # weights /= weights.sum()
+                # # weights = np.array([0.15, 0.35, 0.5])
+                # self._avg_vz[uid] = float(np.dot(vz_values, weights))
+                # print(f"[SPEED] uid={uid} avg_vz={self._avg_vz[uid]:.3f} m/s")
 
     def update_with_elevation(
         self,
@@ -172,7 +177,7 @@ class FallDetector:
                 sin_el = 0.5 * (np.mean(sin_el_1[:, r_bin]) + np.mean(sin_el_2[:, r_bin]))
                 height_m = r_height + track_range * sin_el
 
-            print(f"[ELEV] uid={uid} | r_bin={r_bin} | sin_el={sin_el:.4f} | height={height_m:.3f}m")
+            # print(f"[ELEV] uid={uid} | r_bin={r_bin} | sin_el={sin_el:.4f} | height={height_m:.3f}m")
     
             if now is None:
                 now = time.time()
@@ -232,7 +237,14 @@ class FallDetector:
                     continue
                 
                 # ── Vertical-speed gate ──────────────────────────────────────
-                vz = self._avg_vz.get(tid, 0.0)
+                # vz = self._avg_vz.get(tid, 0.0)
+                vz_hist = list(self._vz_history.get(tid, []))
+                if not vz_hist:
+                    vz = 0.0
+                else:
+                    weights = np.arange(1, len(vz_hist) + 1, dtype=float) ** 2
+                    weights /= weights.sum()
+                    vz = float(np.dot(vz_hist, weights))
                 if self.require_vz and vz > self.vz_threshold:
                     # Not moving downward fast enough
                     print(
