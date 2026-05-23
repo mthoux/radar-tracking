@@ -38,7 +38,7 @@ class Fuser:
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
         self.snr_threshold = cfg_gtrack.min_snr_threshold
-        self.fusion_threshold = 0.05
+        self.fusion_threshold = 0.01 # change for 0.05 if you want single tracking
         self.range_res = cfg_radar["range_res"]
  
         # ---------- FUSION DEFINITIONS ----------
@@ -212,13 +212,13 @@ class Fuser:
                 # 1. On trouve tous les points au-dessus du seuil
                 indices = np.argwhere(to_plot >= self.snr_threshold)
 
-                # if len(indices) > 0:
-                #     # 2. On récupère les valeurs de SNR pour ces indices
-                #     snr_values = to_plot[indices[:, 0], indices[:, 1]]
+                if len(indices) > 0:
+                    # 2. On récupère les valeurs de SNR pour ces indices
+                    snr_values = to_plot[indices[:, 0], indices[:, 1]]
                     
-                #     # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
-                #     #sorted_idx = np.argsort(snr_values)[::-1]
-                #     #indices = indices[sorted_idx]
+                    # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
+                    sorted_idx = np.argsort(snr_values)[::-1]
+                    indices = indices[sorted_idx]
 
                 # 4. Optimization: On garde les 200 m   eilleurs pour éviter de saturer le tracker
                 # detections = [
