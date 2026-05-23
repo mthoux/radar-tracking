@@ -134,26 +134,26 @@ def main():
 
     # Gtrack algorithm configuration
     cfg_gtrack = GTrackConfig2D(
-        max_points=200,                 # max detections per frame
-        max_tracks=3,                   # max simultaneous tracks
-        dt=0.6,                         # time between frames (s)
-        process_noise=0.05,              # Q spectral density
-        meas_noise_range=2.0,           # σ² range noise (m²)
-        meas_noise_az=1,                # σ² azimuth noise (rad²)
-        gating_threshold=6,             # ≈95% gate for 2-DOF chi²
-        alloc_range_gate=0.5,           # cluster gate (m)
-        alloc_az_gate=np.deg2rad(10),   # cluster gate (rad)
-        alloc_vel_gate=20,              # cluster gate (m/s)
-        min_cluster_points=4,          # you can increase if you want multi-point seeds
-        alloc_snr_threshold=0.5,        # sum-SNR threshold
-        min_snr_threshold=0.005,        # min SNR for new track
-        init_state_cov=1.0,             # starting P for new tracks
-        det_to_active_count=1,          # hits needed to go ACTIVE
-        det_to_free_count=3,            # misses to drop DETECTION
-        act_to_free_count=3,           # misses to drop ACTIVE
-        presence_zones=[],              # e.g. [PresenceZone2D(-10,10,-5,5)]
-        pres_on_count=5,                # frames to confirm presence on
-        pres_off_count=3                # frames to confirm presence off
+        max_points=200,
+        max_tracks=3,
+        dt=0.6,
+        process_noise=0.5,              # was 0.05 — higher to avoid track stealing
+        meas_noise_range=0.1,           # was 2.0 — tighter range gate
+        meas_noise_az=0.01,              # was 1 — ±6° instead of ±57°
+        gating_threshold=3,
+        alloc_range_gate=0.3,           # was 0.5 — tighter
+        alloc_az_gate=np.deg2rad(5),    # was 10° — tighter
+        alloc_vel_gate=20,
+        min_cluster_points=4,
+        alloc_snr_threshold=0.5,
+        min_snr_threshold=0.005,
+        init_state_cov=1.0,
+        det_to_active_count=3,          # was 1 — require 3 frames before ACTIVE
+        det_to_free_count=6,
+        act_to_free_count=8,
+        presence_zones=[],
+        pres_on_count=5,
+        pres_off_count=3
     )
 
     # cfg_gtrack = GTrackConfig2D(
