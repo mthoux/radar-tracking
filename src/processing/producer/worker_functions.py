@@ -99,7 +99,7 @@ def beamform_2d_s(beat_freq_data, radar_params, x_locs, dets):
     r_idxs = radar_params["range_idx"]
 
     # Compute the phase shifts for each azimuth angle
-    angles = x_locs * np.cos(phi[:, np.newaxis])
+    angles = x_locs * np.sin(phi[:, np.newaxis])        #todo: changer par rapport à ce sin 
     phase_shifts = np.exp((1j * 2 * np.pi / lm) * angles)
 
     # Initialize the spherical power array
@@ -254,8 +254,11 @@ def compute_dbscan(output_top, r_idxs, phi, eps=0.5, min_samples=5, p_treshold= 
     # Build full coordinate grid
     phi_rad_2d, r_idxs_2d = np.meshgrid(phi, r_idxs, indexing='ij')  # shape: (180, 140)
 
-    x_coords_m = np.cos(phi_rad_2d) * r_idxs_2d  # shape: (180, 140)
-    z_coords_m = np.sin(phi_rad_2d) * r_idxs_2d  # shape: (180, 140)
+    #x_coords_m = np.cos(phi_rad_2d) * r_idxs_2d  # shape: (180, 140)
+    #z_coords_m = np.sin(phi_rad_2d) * r_idxs_2d  # shape: (180, 140)
+
+    x_coords_m = r_idxs_2d * np.sin(phi_rad_2d) 
+    z_coords_m = r_idxs_2d * np.cos(phi_rad_2d)
 
     # Flatten for DBSCAN
     points = np.stack([x_coords_m.ravel(), z_coords_m.ravel()], axis=1)

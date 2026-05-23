@@ -48,8 +48,8 @@ class GTrackUnit2D:
         if r < 1e-6:
             return
         self.H = np.array([
-            [x / r,      y / r,     0,  0],
-            [-y / (r * r), x / (r * r), 0,  0],
+            [x / r,       y / r,      0, 0],   # dr/dx, dr/dy  — unchanged
+            [y / (r * r), -x / (r * r), 0, 0], # daz/dx, daz/dy — SWAPPED signs
         ], dtype=float)
 
         R = np.diag([self.cfg.meas_noise_range, self.cfg.meas_noise_az])

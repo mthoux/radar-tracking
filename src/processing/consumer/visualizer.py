@@ -9,6 +9,10 @@ from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 from panda3d.core import loadPrcFileData
 
+# Initial configurations
+warnings.simplefilter("ignore", UserWarning)
+sys.coinit_flags = 2
+
 # Internal visualization imports
 from src.processing.consumer.visualizer_functions import (
     configure_ax_bf, 
@@ -16,10 +20,6 @@ from src.processing.consumer.visualizer_functions import (
     configure_ax_gtrack, 
     update_ax_gtrack
 )
-
-# Initial configurations
-warnings.simplefilter("ignore", UserWarning)
-sys.coinit_flags = 2
 
 import matplotlib
 matplotlib.use('Qt5Agg')  # Use TkAgg backend for interactive plotting
@@ -53,50 +53,43 @@ class Visualizer(ShowBase):
                 
         # 1. Bird Eye View (Polar)
         self.ax = self.fig.add_subplot(gs[0, 0], projection='polar')
-        self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs)   
+        self.im = configure_ax_bf(self.ax, self.phi, self.r_idxs * cfg_radar["range_res"])   
 
-        # pos = self.ax.get_position()
+        pos = self.ax.get_position()
 
-        # self.ax.set_position([
-        #     pos.x0 - 0.6,
-        #     pos.y0 - 0.17,
-        #     pos.width + 0.10,
-        #     pos.height + 0.20
-        # ])
+        # Bidouillage pour grossir le plot
+        # [x, y, width, height]
+        self.ax.set_position([
+            pos.x0 - 0.11,  # Décalage gauche
+            pos.y0 - 0.11,  # Décalage bas
+            pos.width * 2,  # 200% plus large
+            pos.height * 1.6  # 20% plus haut
+        ])
 
         # 2. GTrack (Cartesian)
         self.ax_3 = self.fig.add_subplot(gs[:, 1])
-        configure_ax_gtrack(self.ax_3, cfg_radar["width"], len(self.r_idxs))
+        configure_ax_gtrack(self.ax_3, cfg_radar["width"], len(self.r_idxs), cfg_radar["range_res"])
 
         # 3. 1D Plot (Power/Range Profile)
         self.ax_1d = self.fig.add_subplot(gs[1, 0])
-        
-        # Récupération de la résolution et création de l'axe en mètres
         res = cfg_radar.get("range_res", 1.0) # On récupère la valeur de la config
         self.r_metres = self.r_idxs * res      # Conversion des indices en mètres
-        
-        # On trace avec self.r_metres au lieu de self.r_idxs
-        self.line_1d, = self.ax_1d.plot(self.r_metres, np.zeros_like(self.r_idxs), color='green')
-        
+        self.line_1d, = self.ax_1d.plot(self.r_metres, np.zeros_like(self.r_idxs), color='green') # On trace avec self.r_metres au lieu de self.r_idxs
         self.ax_1d.set_ylim(0, 1.1)
         self.ax_1d.set_xlim(self.r_metres[0], self.r_metres[-1]) # Calage parfait de l'axe
-        self.ax_1d.set_title(f"Profil de Puissance (Res: {res*100:.1f}cm)")
-        self.ax_1d.set_xlabel("Distance réelle (m)")
+        self.ax_1d.set_title(f"Power profil for distance (Res: {res*100:.1f}cm)")
+        self.ax_1d.set_xlabel("Real distance (m)")
         self.ax_1d.grid(True, alpha=0.3)
 
         # 4. Profil Azimutal (Puissance vs Angle)
         self.ax_azimuth = self.fig.add_subplot(gs[2, 0])
-
-        # On convertit en degrés ET on décale de -90 pour avoir l'échelle [-90, 90]
-        self.phi_deg = np.degrees(self.phi) - 90 
-
+        self.phi_deg = np.degrees(self.phi)
         self.line_azimuth, = self.ax_azimuth.plot(self.phi_deg, np.zeros_like(self.phi), color='blue')
         self.ax_azimuth.set_ylim(0, 1.1)
-
         # Mise à jour auto des limites
         self.ax_azimuth.set_xlim(self.phi_deg[0], self.phi_deg[-1]) 
-        self.ax_azimuth.set_title("Profil de Puissance par Angle (Centré)")
-        self.ax_azimuth.set_xlabel("Angle (degrés)")
+        self.ax_azimuth.set_title("Power profil for azimuth")
+        self.ax_azimuth.set_xlabel("Phi (degrés)")
 
         # Artists and UI elements
         self.last_artists = []
@@ -114,7 +107,7 @@ class Visualizer(ShowBase):
 
         # Texte pour le log des chutes (à gauche ou droite selon tes besoins)
         self.fall_log_text = self.ax_3.text(
-            1.02, 1.0, "Chutes :\n—",
+            1.02, 1.0, "Falls :\n—",
             transform=self.ax_3.transAxes,
             fontsize=8, color='red', verticalalignment='top'
         )
@@ -131,16 +124,13 @@ class Visualizer(ShowBase):
         if data is not None:
 
             # 1. Update Heatmap & Tracks
-            self.im.set_array(data["heatmap"].ravel())
+            self.im.set_array(np.flipud(data["heatmap"]).ravel())
             update_ax_gtrack(self.ax_3, data["tracks"], self.last_artists)
 
-            # Update Graphique 1D ---
-            if "range_profile" in data:
-                self.line_1d.set_ydata(data["range_profile"])
-
-            # Mise à jour du profil en angle (Y)
-            if "azimuth_profile" in data:
-                self.line_azimuth.set_ydata(data["azimuth_profile"])
+            # Update Profile 1D ---
+            if "profile" in data:
+                self.line_1d.set_ydata(data["profile"]["range"])
+                self.line_azimuth.set_ydata(data["profile"]["azimuth"])
 
             # 2. Update Title based on learning state
             if self.do_bg_removal:
@@ -161,7 +151,7 @@ class Visualizer(ShowBase):
                 f"{time.strftime('%H:%M:%S', time.localtime(e['timestamp']))} - ID {e['track_id']}"
                 for e in data.get("all_falls", [])
             ]
-            self.fall_log_text.set_text("Chutes :\n" + "\n".join(history[-5:])) # Affiche les 5 dernières
+            self.fall_log_text.set_text("Falls :\n" + "\n".join(history[-5:])) # Affiche les 5 dernières
 
             # 4. Calculate FPS
             self.frame_counter += 1

@@ -97,7 +97,7 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
 
             # Set the static range indices to zero
             range_fft_subset[:, :, 0:10] = 0
-            range_fft_subset[:, :, 120:150] = 0
+            #range_fft_subset[:, :, 120:150] = 0 #pq on a enlevé ça ?
 
             # Compute CFAR
             dets = process_frame(range_fft_subset, cfg_cfar)

@@ -26,16 +26,15 @@ def configure_ax_bf(ax, phi, r, vmin=0, vmax=0.1):
         The pcolormesh object for the beamforming visualization.
     """
 
-    ax.set_theta_zero_location('E')
-    ax.set_theta_direction(1)
-    ax.set_thetamin(0)
-    ax.set_thetamax(180)
+    ax.set_theta_zero_location('N')
+    ax.set_theta_direction(-1)
+    phi_deg = np.degrees(phi)
+    ax.set_thetamin(np.min(phi_deg))
+    ax.set_thetamax(np.max(phi_deg))
     ax.set_title("Bird Eye View (Top View)")
 
     R, Theta = np.meshgrid(r, phi)
 
-    ax.set_xlim(phi[0], phi[-1])
-    ax.set_ylim(r[0], r[-1])
     ax.grid(False)
 
     num_phi = len(phi)
@@ -61,7 +60,7 @@ def configure_ax_db(ax):
     ax.set_title("DBSCAN Clustering on Full Heatmap")
 
 
-def configure_ax_gtrack(ax, width, rgd):
+def configure_ax_gtrack(ax, width, rgd, range_res):
     """
     Configure axes for GTRACK visualization.
 
@@ -75,10 +74,13 @@ def configure_ax_gtrack(ax, width, rgd):
         The range of the y-axis (height) for the visualization.
     """
 
-    ax.set_xlim(-width, width)
-    ax.set_ylim(0, rgd)
+    max_y = rgd * range_res
+    max_x = width * range_res
+
+    ax.set_xlim(-max_x, max_x)
+    ax.set_ylim(0, max_y)
     ax.set_xlabel("X position")
-    ax.set_ylabel("Y position")
+    ax.set_ylabel("Y position (m)")
     ax.set_title("GTRACK")
     ax.grid(True)
 
