@@ -163,10 +163,26 @@ class FallDetector:
                 track_range = float(np.hypot(x, y))
                 r_bin = int(np.round(track_range / range_res))
                 r_bin = np.clip(r_bin, 0, sin_el_1.shape[1] - 1)
-                sin_el = 0.5 * (
-                    np.mean(sin_el_1[:, r_bin]) + np.mean(sin_el_2[:, r_bin])
-                )
+                # sin_el = 0.5 * (
+                #     np.mean(sin_el_1[:, r_bin]) + np.mean(sin_el_2[:, r_bin])
+                # )
+                # height_m = r_height + track_range * sin_el
+                
+                # Prendre uniquement les bins doppler détectés à ce range bin
+                dets_at_r1 = sin_el_1[:, r_bin]
+                dets_at_r2 = sin_el_2[:, r_bin]
+                
+                nonzero_1 = dets_at_r1[dets_at_r1 != 0]
+                nonzero_2 = dets_at_r2[dets_at_r2 != 0]
+                
+                if len(nonzero_1) > 0 or len(nonzero_2) > 0:
+                    all_nonzero = np.concatenate([nonzero_1, nonzero_2]) if len(nonzero_1) > 0 and len(nonzero_2) > 0 else (nonzero_1 if len(nonzero_1) > 0 else nonzero_2)
+                    sin_el = float(np.mean(all_nonzero))
+                else:
+                    sin_el = 0.0
+
                 height_m = r_height + track_range * sin_el
+                print(f"[ELEV] uid={uid} | r_bin={r_bin} | sin_el={sin_el:.4f} | height={height_m:.3f}m")
     
             if now is None:
                 now = time.time()
