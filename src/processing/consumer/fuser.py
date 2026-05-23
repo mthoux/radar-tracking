@@ -43,7 +43,7 @@ class Fuser:
         # ---------- FUSION DEFINITIONS ----------
         
         # Geometric Offsets
-        self.x1, self.x2 = +cfg_radar["D_x"]/2 * self.range_res,  -cfg_radar["D_x"]/2 * self.range_res # convert in bins
+        self.x1, self.x2 = +cfg_radar["D_x"]/(2 * self.range_res),  -cfg_radar["D_x"]/(2 * self.range_res) # convert in bins
         self.angle_1, self.angle_2 = cfg_radar["angle_1"], cfg_radar["angle_2"]
 
         # Define Cartesian Grid for Fusion
@@ -210,7 +210,7 @@ class Fuser:
                 active_ids = {t['uid'] for t in tracks}
                 
                 # Mise à jour des élevations pour le détecteur
-                self.fall_detector.update_with_elevation(tracks, sin_el_1, sin_el_2, self.radar_height)
+                self.fall_detector.update_with_elevation(tracks, sin_el_1, sin_el_2, self.radar_height, self.range_res)
                 
                 # C. Détection
                 fall_events = self.fall_detector.update(active_ids)

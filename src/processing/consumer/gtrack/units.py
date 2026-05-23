@@ -31,6 +31,8 @@ class GTrackUnit2D:
         self.dim = np.zeros(2)
         self.confidence = 0.0
 
+        self._last_assigned = []
+
     def predict(self):
         """
         Predict the next state and measurement matrix for the tracking unit.
@@ -129,6 +131,7 @@ class GTrackUnit2D:
             self.miss_count += 1
             self.event()
             return
+        self._last_assigned = assigned
         zs = np.array([[pt.range, pt.azimuth] for pt in assigned])
         mean_z = zs.mean(axis=0)
         r_pred, az_pred = cart2sph_2d(self.apriori_state[0], self.apriori_state[1])
@@ -178,7 +181,8 @@ class GTrackUnit2D:
             'cov': np.diag(self.P).copy(),
             'dim': self.dim.copy(),
             'confidence': self.confidence,
-            'status': self.status
+            'status': self.status,
+            'points': [pt for pt in self._last_assigned] 
         }
 
     def stop(self):

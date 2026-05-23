@@ -109,6 +109,7 @@ class FallDetector:
         sin_el_1,
         sin_el_2,
         r_height,
+        range_res,
     ):
         """
         For each active track estimate its height from the elevation map and
@@ -160,7 +161,7 @@ class FallDetector:
             else:
                 # Fallback: use track range and mean sin_el at that range bin
                 track_range = float(np.hypot(x, y))
-                r_bin = int(np.round(track_range))
+                r_bin = int(np.round(track_range / range_res))
                 r_bin = np.clip(r_bin, 0, sin_el_1.shape[1] - 1)
                 sin_el = 0.5 * (
                     np.mean(sin_el_1[:, r_bin]) + np.mean(sin_el_2[:, r_bin])
