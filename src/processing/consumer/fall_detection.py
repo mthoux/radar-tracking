@@ -214,7 +214,7 @@ class FallDetector:
             if count > self.fall_threshold + 30:
                 del self.miss_counter[tid]
                 self._height_history.pop(tid, None)
-                self._avg_vz.pop(tid, None)
+                self._vz_history.pop(tid, None)
                 continue
             
             if count >= self.fall_threshold and tid not in self.alerted_ids:
@@ -233,7 +233,7 @@ class FallDetector:
                     )
                     del self.miss_counter[tid]
                     self._height_history.pop(tid, None)
-                    self._avg_vz.pop(tid, None)
+                    self._vz_history.pop(tid, None)
                     continue
                 
                 # ── Vertical-speed gate ──────────────────────────────────────
@@ -254,7 +254,7 @@ class FallDetector:
                     )
                     del self.miss_counter[tid]
                     self._height_history.pop(tid, None)
-                    self._avg_vz.pop(tid, None)
+                    self._vz_history.pop(tid, None)
                     continue
                 
                 # Fall register
