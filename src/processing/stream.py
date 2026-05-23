@@ -89,7 +89,7 @@ def main():
         #"phi": np.deg2rad(np.arange(0, 100, 1)), # fov_angle
         "phi": np.deg2rad(np.arange(-50, 51, 1)),
         "width": 50,
-        "D_x": 0.70, # Distance that separate both radars on axis X (in m)
+        "D_x": 0.60, # Distance that separate both radars on axis X (in m)
         "angle_1": np.deg2rad(0),
         "angle_2": np.deg2rad(0),
         "num_tx": 3,                # Number of TX (for worker)
@@ -135,11 +135,11 @@ def main():
     # Gtrack algorithm configuration
     cfg_gtrack = GTrackConfig2D(
         max_points=200,
-        max_tracks=3,
+        max_tracks=2,
         dt=0.6,
         process_noise=0.05,              # was 0.05 — higher to avoid track stealing
-        meas_noise_range=0.1,           # was 2.0 — tighter range gate
-        meas_noise_az=0.01,              # was 1 — ±6° instead of ±57°
+        meas_noise_range=0.5,           # was 2.0 — tighter range gate
+        meas_noise_az=0.05,              # was 1 — ±6° instead of ±57°
         gating_threshold=6,
         alloc_range_gate=0.5,           # was 0.5 — tighter
         alloc_az_gate=np.deg2rad(10),    # was 10° — tighter
