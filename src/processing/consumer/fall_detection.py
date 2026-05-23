@@ -17,7 +17,7 @@ class FallDetector:
         self, 
         fall_threshold_frames=15, 
         valid_zone=(-25, 25, 5, 95),
-        vz_threshold_m_s: float = -0.8,    # m/s — negative = downward
+        vz_threshold_m_s: float = -0.7,    # m/s — negative = downward
         vz_window_frames: int = 5,         # frames used for derivative
         require_vz: bool = True,           # set False → disappearance-only (original)
     ):
@@ -92,8 +92,13 @@ class FallDetector:
                 vz = (h1 - h0) / dt
 
                 # Ignore noise spikes
-                if -6.0 <= vz <= 6.0:
+                # if -6.0 <= vz <= 6.0:
+                if ((vz <= -6.0) | (6.0 <= vz)):
+                    continue
+                elif -6.0 <= vz <= 0.0:
                     vz_values.append(vz)
+                else:
+                    vz_values.append(0.0)
 
             if vz_values:
                 if uid not in self._vz_history:
@@ -244,10 +249,11 @@ class FallDetector:
                 else:
                     # weights = np.arange(1, len(vz_hist) + 1, dtype=float) ** 2
                     weights = [0.5, 1]
-                    weights /= weights.sum()
+                    weights /= np.sum(weights)
+                    # ------- Mettre en place qu'il prenne les deux valeurs négatives plus petites -------
                     vz = float(np.dot(vz_hist[len(vz_hist) // 2:], weights))
-                for n,i in enumerate(vz_hist):
-                    print (f"{n}º: {i} m/s")
+                for n, i in enumerate(vz_hist):
+                    print (f"{n + 1}º: {i:.3f} m/s")
                 print(f"[SPEED] uid={tid} last_vz={vz:.3f} m/s")
 
                 if self.require_vz and vz > self.vz_threshold:
