@@ -58,7 +58,7 @@ class FallDetector:
             timestamp = time.time()
  
         if uid not in self._height_history:
-            self._height_history[uid] = deque(maxlen=self.vz_window)
+            self._height_history[uid] = deque(maxlen=self.vz_window*2)
  
         self._height_history[uid].append((timestamp, height_m))
  
@@ -97,10 +97,10 @@ class FallDetector:
 
             if vz_values:
                 if uid not in self._vz_history:
-                    self._vz_history[uid] = deque(maxlen=self.vz_window)
+                    self._vz_history[uid] = deque(maxlen=self.vz_window*2)
                 # Store the most recent raw vz
                 self._vz_history[uid].append(vz_values[-1])
-                print(f"[SPEED] uid={uid} last_vz={vz_values[-1]:.3f} m/s")
+                # print(f"[SPEED] uid={uid} last_vz={vz_values[-1]:.3f} m/s")
                 # # Recompute weights for actual number of valid intervals
                 # weights = np.arange(1, len(vz_values) + 1, dtype=float) ** 2
                 # weights /= weights.sum()
@@ -242,9 +242,14 @@ class FallDetector:
                 if not vz_hist:
                     vz = 0.0
                 else:
-                    weights = np.arange(1, len(vz_hist) + 1, dtype=float) ** 2
+                    # weights = np.arange(1, len(vz_hist) + 1, dtype=float) ** 2
+                    weights = [0.5, 1]
                     weights /= weights.sum()
-                    vz = float(np.dot(vz_hist, weights))
+                    vz = float(np.dot(vz_hist[len(vz_hist) // 2:], weights))
+                for n,i in enumerate(vz_hist):
+                    print (f"{n}º: {i} m/s")
+                print(f"[SPEED] uid={tid} last_vz={vz:.3f} m/s")
+
                 if self.require_vz and vz > self.vz_threshold:
                     # Not moving downward fast enough
                     print(
