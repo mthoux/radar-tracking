@@ -247,11 +247,16 @@ class FallDetector:
                 if not vz_hist:
                     vz = 0.0
                 else:
-                    # weights = np.arange(1, len(vz_hist) + 1, dtype=float) ** 2
+                    # ------- Mettre en place qu'il prenne les deux valeurs négatives plus petites -------
+                    negatives = [v for v in vz_hist if v < 0]
+                     # Pad with zeros if not enough negative values
+                    while len(negatives) < 2:
+                        negatives.insert(0, 0.0)
+                    
                     weights = [0.5, 1]
                     weights /= np.sum(weights)
-                    # ------- Mettre en place qu'il prenne les deux valeurs négatives plus petites -------
-                    vz = float(np.dot(vz_hist[len(vz_hist) // 2:], weights))
+                    vz = float(np.dot(negatives[-2:], weights))
+
                 for n, i in enumerate(vz_hist):
                     print (f"{n + 1}º: {i:.3f} m/s")
                 print(f"[SPEED] uid={tid} last_vz={vz:.3f} m/s")
