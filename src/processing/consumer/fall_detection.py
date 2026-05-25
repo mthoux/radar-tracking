@@ -17,8 +17,8 @@ class FallDetector:
         self, 
         fall_threshold_frames=15, 
         valid_zone=(-25, 25, 5, 95),
-        vz_threshold_m_s: float = -0.7,    # m/s — negative = downward
-        vz_window_frames: int = 5,         # frames used for derivative
+        vz_threshold_m_s: float = -1.0,    # m/s — negative = downward
+        vz_window_frames: int = 4,         # frames used for derivative
         require_vz: bool = True,           # set False → disappearance-only (original)
     ):
         self.fall_threshold  = fall_threshold_frames
@@ -102,7 +102,7 @@ class FallDetector:
 
             if vz_values:
                 if uid not in self._vz_history:
-                    self._vz_history[uid] = deque(maxlen=self.vz_window*2)
+                    self._vz_history[uid] = deque(maxlen=self.vz_window)
                 # Store the most recent raw vz
                 self._vz_history[uid].append(vz_values[-1])
                 # print(f"[SPEED] uid={uid} last_vz={vz_values[-1]:.3f} m/s")
