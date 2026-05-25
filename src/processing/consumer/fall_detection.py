@@ -93,8 +93,9 @@ class FallDetector:
 
                 # Ignore noise spikes
                 # if -6.0 <= vz <= 6.0:
-                # if ((vz <= -6.0) | (6.0 <= vz)):
-                if vz <= 0.0:
+                if ((vz <= -6.0) | (6.0 <= vz)):
+                    continue
+                elif -6.0 <= vz <= 0.0:
                     vz_values.append(vz)
                 else:
                     vz_values.append(0.0)
