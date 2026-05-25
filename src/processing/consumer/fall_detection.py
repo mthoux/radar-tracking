@@ -93,9 +93,9 @@ class FallDetector:
 
                 # Ignore noise spikes
                 # if -6.0 <= vz <= 6.0:
-                if ((vz <= -6.0) | (6.0 <= vz)):
-                    continue
-                elif -6.0 <= vz <= 0.0:
+                # if ((vz <= -6.0) | (6.0 <= vz)):
+                #     continue
+                if -5.0 <= vz <= 0.0:
                     vz_values.append(vz)
                 else:
                     vz_values.append(0.0)
@@ -248,14 +248,16 @@ class FallDetector:
                     vz = 0.0
                 else:
                     # ------- Mettre en place qu'il prenne les deux valeurs négatives plus petites -------
-                    negatives = [v for v in vz_hist if v < 0]
-                     # Pad with zeros if not enough negative values
-                    while len(negatives) < 2:
-                        negatives.insert(0, 0.0)
+                    negatives = [v for v in vz_hist[:-1] if v < 0]
+
+                    if negatives:
+                        vz = min(negatives)  # most negative = fastest downward speed
+                    else:
+                        vz = 0.0
                     
-                    weights = [0.5, 1]
-                    weights /= np.sum(weights)
-                    vz = float(np.dot(negatives[-2:], weights))
+                    # weights = [0.5, 1]
+                    # weights /= np.sum(weights)
+                    # vz = float(np.dot(negatives[-2:], weights))
 
                 for n, i in enumerate(vz_hist):
                     print (f"{n + 1}º: {i:.3f} m/s")
