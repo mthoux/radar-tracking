@@ -17,7 +17,7 @@ class FallDetector:
         self, 
         fall_threshold_frames=15, 
         valid_zone=(-25, 25, 5, 95),
-        vz_threshold_m_s: float = -1.0,    # m/s — negative = downward
+        vz_threshold_m_s: float = -2.0,    # m/s — negative = downward
         vz_window_frames: int = 5,         # frames used for derivative
         require_vz: bool = True,           # set False → disappearance-only (original)
     ):
@@ -93,9 +93,8 @@ class FallDetector:
 
                 # Ignore noise spikes
                 # if -6.0 <= vz <= 6.0:
-                if ((vz <= -6.0) | (6.0 <= vz)):
-                    continue
-                elif -6.0 <= vz <= 0.0:
+                # if ((vz <= -6.0) | (6.0 <= vz)):
+                if vz <= 0.0:
                     vz_values.append(vz)
                 else:
                     vz_values.append(0.0)
