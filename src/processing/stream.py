@@ -136,8 +136,8 @@ def main():
     cfg_gtrack = GTrackConfig2D(
         max_points=200,
         max_tracks=2,
-        dt=0.6,
-        process_noise=0.1,              # was 0.05 — higher to avoid track stealing
+        dt=0.4,
+        process_noise=0.05,              # was 0.05 — higher to avoid track stealing
         meas_noise_range=0.5,           # was 2.0 — tighter range gate
         meas_noise_az=0.05,              # was 1 — ±6° instead of ±57°
         gating_threshold=6,
@@ -150,7 +150,7 @@ def main():
         init_state_cov=1.0,
         det_to_active_count=3,          # was 1 — require 3 frames before ACTIVE
         det_to_free_count=8,
-        act_to_free_count=8,
+        act_to_free_count=6,
         presence_zones=[],
         pres_on_count=5,
         pres_off_count=3
