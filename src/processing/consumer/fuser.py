@@ -87,7 +87,7 @@ class Fuser:
         self.fall_detector = FallDetector(
             fall_threshold_frames=20,
             valid_zone = (-1.5, 1.5, 0.5, 4.0),
-            vz_window_frames = 2
+            vz_window_frames = 3
         )
         self.last_fps = 20.0 # Valeur par défaut pour le seuil initial
 
