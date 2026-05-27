@@ -115,7 +115,7 @@ class Fuser:
         self.last_Z = None
 
         # --- OPTION VISUALISATION DES RADARS ---
-        self.enable_plots = enable_plots
+        self.enable_plots = cfg_radar["debug"]["do_plot_individually"]
         if self.enable_plots:
             plt.ion()  # Mode interactif activé
             self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(10, 4))
@@ -303,10 +303,10 @@ class Fuser:
             # --- LOGIQUE LED ARDUINO ---
             if self.arduino:
                 try:
-                    self.arduino.write(b'1' if tracks else b'0') # Write Green LED for tracking
+                    self.arduino.write(b'G' if tracks else b'g') # Write Green LED for tracking
                     real_falls = [e for e in fall_events if not e.get("not_alone")]
-                    if real_falls: self.arduino.write(b'F') # Write red LED for falls where person alone
-                    else: self.arduino.write(b'N') # Shutdown red LED when no more falls
+                    if real_falls: self.arduino.write(b'R') # Write red LED for falls where person alone
+                    else: self.arduino.write(b'r') # Shutdown red LED when no more falls
                 except:
                     self.arduino = None
                     print("❌ Lost connection with Arduino.")

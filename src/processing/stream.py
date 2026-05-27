@@ -86,7 +86,6 @@ def main():
     cfg_radar = {
         "range_res": 0.044,
         "range_idx": np.arange(0, 100, 1),
-        #"phi": np.deg2rad(np.arange(0, 100, 1)), # fov_angle
         "phi": np.deg2rad(np.arange(-50, 51, 1)),
         "width": 50,
         "D_x": 0.60, # Distance that separate both radars on axis X (in m)
@@ -100,11 +99,13 @@ def main():
         "c": 3e8,
         "lm": 3e8 / 77e9, # c / f
         "slope": 70.150e12,
-        "do_bg_removal": args.bg_removal,
         "radar_mount_height": 0.8,   # metres — set to 0.0 if radar is on the floor
         "do_bg_removal": args.bg_removal,
         "smoothing": True,
         "alpha_smoothing": 0.5,  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux),
+        "debug": {
+            "do_plot_individually": False
+        }
     }
 
     cfg_network = {
