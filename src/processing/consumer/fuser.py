@@ -38,6 +38,7 @@ class Fuser:
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
         self.snr_threshold = cfg_gtrack.min_snr_threshold
+        self.fusion_threshold = 0.01 # change for 0.05 if you want single tracking
         self.range_res = cfg_radar["range_res"]
  
         # ---------- FUSION DEFINITIONS ----------
@@ -141,8 +142,23 @@ class Fuser:
             interp2 = RegularGridInterpolator((self.phi, self.r_idxs), bf_2, bounds_error=False, fill_value=0)
 
             # Map both radars to the same Cartesian space and fuse using Maximum Intensity Projection
-            Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
-            #Z_cart = (interp1(self.pts1) + interp2(self.pts2)).reshape(self.X.shape) / 2.0
+            #Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
+            
+            v1 = interp1(self.pts1)
+            v2 = interp2(self.pts2)
+
+            both_see   = (v1 > self.fusion_threshold) & (v2 > self.fusion_threshold)
+            either_see = (v1 > self.fusion_threshold) | (v2 > self.fusion_threshold)
+
+            Z_cart = np.where(
+                both_see,
+                np.maximum(v1, v2),
+                np.where(
+                    either_see,
+                    0.8 * np.maximum(v1, v2),
+                    0.0
+                )
+            ).reshape(self.X.shape)
 
             # --- PERSISTENCE (Lissage temporel) ---
             if self.do_smoothing:
@@ -155,11 +171,13 @@ class Fuser:
        
             Z_polar = interp_fused(self.pts_back).reshape(self.POLAR_SHAPE)
 
-            # Normalize 
+            
             to_plot = np.abs(Z_polar)
+            #normalize first 
             norm_factor = np.max(to_plot)
             if norm_factor > 0:
                 to_plot /= norm_factor
+            
 
            # --- BACKGROUND SUBTRACTION ---
             is_learning = len(self.clutter_frames) < self.CLUTTER_LEARN_LIMIT
@@ -172,7 +190,18 @@ class Fuser:
                         print("Background subtraction completed")
                 elif self.clutter_map is not None:
                     to_plot = np.clip(to_plot - self.clutter_map, 0, None)
-
+                    # Only renormalize if there's meaningful signal
+                    norm_factor2 = np.max(to_plot)
+                    if norm_factor2 > 0.6:  # threshold — only normalize real signal
+                        to_plot /= norm_factor2
+                    else:
+                        to_plot[:] = 0.0  # nothing meaningful → zero out entirely
+            
+            # Normalize after background removal to maintain consistent SNR thresholds
+            # norm_factor = np.max(to_plot)
+            # if norm_factor > 0:
+            #     to_plot /= norm_factor        
+            
             # Sharpen the heatmap for point detection
             to_plot = to_plot ** 8
 
@@ -183,13 +212,13 @@ class Fuser:
                 # 1. On trouve tous les points au-dessus du seuil
                 indices = np.argwhere(to_plot >= self.snr_threshold)
 
-                # if len(indices) > 0:
-                #     # 2. On récupère les valeurs de SNR pour ces indices
-                #     snr_values = to_plot[indices[:, 0], indices[:, 1]]
+                if len(indices) > 0:
+                    # 2. On récupère les valeurs de SNR pour ces indices
+                    snr_values = to_plot[indices[:, 0], indices[:, 1]]
                     
-                #     # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
-                #     #sorted_idx = np.argsort(snr_values)[::-1]
-                #     #indices = indices[sorted_idx]
+                    # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
+                    sorted_idx = np.argsort(snr_values)[::-1]
+                    indices = indices[sorted_idx]
 
                 # 4. Optimization: On garde les 200 m   eilleurs pour éviter de saturer le tracker
                 # detections = [
@@ -202,20 +231,9 @@ class Fuser:
                     for j, i in indices[:200]
                 ]
 
-                if len(detections) > 0:
-                    azs = [d.azimuth for d in detections]
-                    rs  = [d.range   for d in detections]
-                    print(f"[DET] n={len(detections)}  az: min={np.degrees(min(azs)):.1f}°  max={np.degrees(max(azs)):.1f}°  mean={np.degrees(np.mean(azs)):.1f}°")
-                    print(f"[DET]                       r:  min={min(rs):.2f}m   max={max(rs):.2f}m   mean={np.mean(rs):.2f}m")
-                    print(f"[DET] phi array: [{np.degrees(self.phi[0]):.1f}° ... {np.degrees(self.phi[-1]):.1f}°]")
-                    print(f"[DET] to_plot shape={to_plot.shape}  nonzero above threshold={len(indices)}")
-
                 gtrack_output = self.tracker.step(detections)
                 tracks = gtrack_output.get('tracks', [])
 
-                # DEBUG
-                for t in tracks:
-                    print(f"[TRACK] uid={t['uid']} status={t['status']} pos=({t['pos'][0]:.2f}, {t['pos'][1]:.2f})")
 
             # --- LOGIQUE DE DETECTION DE CHUTE (Dans Fuser.py) ---
             if is_learning:
