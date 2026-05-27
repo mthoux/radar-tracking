@@ -130,7 +130,7 @@ def main():
     }
 
     cfg_arduino = {
-        "port": "/dev/tty.usbmodem1401",
+        "port": "/dev/tty.usbmodem141201",
         "warning": False
     }
 

@@ -23,7 +23,7 @@ class Fuser:
     and target tracking using GTrack.
     """
 
-    def __init__(self, queue_1: Any, queue_2: Any, queue_out: Any, cfg_radar: Dict[str, Any], cfg_gtrack: Any, cfg_arduino):
+    def __init__(self, queue_1: Any, queue_2: Any, queue_out: Any, cfg_radar: Dict[str, Any], cfg_gtrack: Any, cfg_arduino, enable_plots: bool = False):
         """
         Initializes the processor with radar geometry and tracking configurations.
         """
@@ -91,7 +91,7 @@ class Fuser:
         # Initialisation du détecteur de chute
         self.fall_detector = FallDetector(
             fall_threshold_frames=20,
-            valid_zone = (-2.0, 2.0, 1.0, 4.0),
+            valid_zone = (-1.75, 1.75, 1.0, 4.0),
             vz_window_frames = 3
         )
         self.last_fps = 20.0 # Valeur par défaut pour le seuil initial
@@ -114,11 +114,42 @@ class Fuser:
         self.alpha = cfg_radar["alpha_smoothing"]
         self.last_Z = None
 
-        # --- INITIALISATION PLOT NON-BLOQUANT ---
-        plt.ion()  # Mode interactif activé
-        self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(10, 4))
-        self.im1 = None
-        self.im2 = None
+        # --- OPTION VISUALISATION DES RADARS ---
+        self.enable_plots = enable_plots
+        if self.enable_plots:
+            plt.ion()  # Mode interactif activé
+            self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(10, 4))
+            self.im1 = None
+            self.im2 = None
+
+    def _update_radar_plots(self, matrice_R1: np.ndarray, matrice_R2: np.ndarray):
+        """
+        Gère le rendu et la mise à jour fluide des graphiques cartésiens pour chaque radar.
+        """
+        if self.im1 is None:
+            # Premier affichage : Configuration des axes et des colorbars
+            extent_axes = [-self.width, self.width, self.y_grid[0], self.y_grid[-1]]
+            self.im1 = self.ax1.imshow(matrice_R1, extent=extent_axes, origin='lower', aspect='auto', cmap='jet')
+            self.ax1.set_title("Radar 1 (Cartésien - Mètres)")
+            self.ax1.set_xlabel("X (m)")
+            self.ax1.set_ylabel("Y (m)")
+            self.fig.colorbar(self.im1, ax=self.ax1)
+
+            self.im2 = self.ax2.imshow(matrice_R2, extent=extent_axes, origin='lower', aspect='auto', cmap='jet')
+            self.ax2.set_title("Radar 2 (Cartésien - Mètres)")
+            self.ax2.set_xlabel("X (m)")
+            self.fig.colorbar(self.im2, ax=self.ax2)
+        else:
+            # Rafraîchissement ultra-rapide des données sans recréer la fenêtre
+            self.im1.set_data(matrice_R1)
+            self.im2.set_data(matrice_R2)
+            # Ajustement dynamique des contrastes
+            self.im1.set_clim(vmin=matrice_R1.min(), vmax=matrice_R1.max())
+            self.im2.set_clim(vmin=matrice_R2.min(), vmax=matrice_R2.max())
+        
+        # Déplacés ici de manière sécurisée (uniquement exécutés si les plots sont actifs)
+        self.fig.canvas.draw_idle()
+        self.fig.canvas.flush_events()  # Permet à Matplotlib de mettre à jour le rendu sans bloquer
 
     def _get_latest_from_queues(self):
         """
@@ -162,33 +193,11 @@ class Fuser:
             v1 = interp1(self.pts1)
             v2 = interp2(self.pts2)
 
-            # --- BLOC DE DEBUG VISUEL FLUIDE (NON-BLOQUANT) ---
-            matrice_R1 = np.abs(v1.reshape(self.X.shape))
-            matrice_R2 = np.abs(v2.reshape(self.X.shape))
-
-            if self.im1 is None:
-                # Premier affichage : Configuration des axes et des colorbars
-                extent_axes = [-self.width, self.width, self.y_grid[0], self.y_grid[-1]]
-                self.im1 = self.ax1.imshow(matrice_R1, extent=extent_axes, origin='lower', aspect='auto', cmap='jet')
-                self.ax1.set_title("Radar 1 (Cartésien - Mètres)")
-                self.ax1.set_xlabel("X (m)")
-                self.ax1.set_ylabel("Y (m)")
-                self.fig.colorbar(self.im1, ax=self.ax1)
-
-                self.im2 = self.ax2.imshow(matrice_R2, extent=extent_axes, origin='lower', aspect='auto', cmap='jet')
-                self.ax2.set_title("Radar 2 (Cartésien - Mètres)")
-                self.ax2.set_xlabel("X (m)")
-                self.fig.colorbar(self.im2, ax=self.ax2)
-            else:
-                # Rafraîchissement ultra-rapide des données sans recréer la fenêtre
-                self.im1.set_data(matrice_R1)
-                self.im2.set_data(matrice_R2)
-                # Ajustement dynamique des contrastes
-                self.im1.set_clim(vmin=matrice_R1.min(), vmax=matrice_R1.max())
-                self.im2.set_clim(vmin=matrice_R2.min(), vmax=matrice_R2.max())
-            
-            self.fig.canvas.draw_idle()
-            self.fig.canvas.flush_events()  # Permet à Matplotlib de mettre à jour le rendu sans bloquer
+            # --- BLOC DE DEBUG VISUEL FLUIDE (OPTIONNEL / ISOLE) ---
+            if self.enable_plots:
+                matrice_R1 = np.abs(v1.reshape(self.X.shape))
+                matrice_R2 = np.abs(v2.reshape(self.X.shape))
+                self._update_radar_plots(matrice_R1, matrice_R2)
             # --------------------------------------------------
 
             both_see   = (v1 > self.fusion_threshold) & (v2 > self.fusion_threshold)
