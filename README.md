@@ -19,19 +19,11 @@ pip install -r requirements.txt
 
 Run the project:
 
-## Project Structure
+c
 ```
 radar-tracking/
-├── data/           # Radar samples and datasets
-├── src/            # Core source code
-├── models/         # Tracking or detection models
-├── scripts/        # Utility scripts
-└── main.py         # Entry point
+└── src/            # Core source code
 ```
-
-## Licence
-
-MIT License
 
 # Usage
 
@@ -46,3 +38,13 @@ When radars started you can then simply type ./stream.sh to launch streaming and
 # References 
 
 AWR1843BOOST DOC : https://www.ti.com/lit/ug/tidueo9/tidueo9.pdf?ts=1779243139006
+
+## Authors
+* **[@mthoux](https://github.com/mthoux)**
+* **[@Romain-du-25](https://github.com/Romain-du-25)**
+* **[@DrMoebius1](https://github.com/DrMoebius1)**
+
+---
+
+## 📄 License
+This project is licensed under the **MIT License**. Feel free to fork it, experiment with it, share it, or use it as educational material!

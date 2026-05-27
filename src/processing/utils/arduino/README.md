@@ -2,7 +2,7 @@
 
 This folder contains the embedded micro-controller firmware and the diagnostic test bench used to interface the Texas Instruments mmWave radar tracking application with an external physical alarm system.
 
-## 📂 Folder Structure
+## Folder Structure
 
 ```text
 arduino/
