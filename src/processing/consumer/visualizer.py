@@ -135,9 +135,9 @@ class Visualizer(ShowBase):
             # 2. Update Title based on learning state
             if self.do_bg_removal:
                 if data["learning_left"] > 0:
-                    self.ax.set_title(f"Learning background... ({data['learning_left']} frames left)")
+                    self.ax.set_title(f"🟠 Calibrating Environment... ({data['learning_left']} frames left)", color="orange")
                 else:
-                    self.ax.set_title("Radar Active")
+                    self.ax.set_title("🟢 Radars Calibrated", color="green", fontweight="bold")
 
             # 3. Update Fall Log & Title
             if data.get("fall_events"):
@@ -149,7 +149,7 @@ class Visualizer(ShowBase):
                     self.ax_3.set_title(f"Don't worry, the track {last_event['track_id']} is not alone at {ts}", color="green")
                 # if person is alone
                 else:   
-                    self.ax_3.set_title(f"⚠ CHUTE : Track {last_event['track_id']} à {ts}", color="red")
+                    self.ax_3.set_title(f"⚠ FALL DETECTED : Track {last_event['track_id']} at {ts}", color="red")
 
             # Mise à jour de l'historique de chutes
             history = [
