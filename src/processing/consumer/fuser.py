@@ -86,7 +86,7 @@ class Fuser:
         # Initialisation du détecteur de chute
         self.fall_detector = FallDetector(
             fall_threshold_frames=20,
-            valid_zone = (-1.0, 1.0, 0.5, 4.0),
+            valid_zone = (-2.0, 2.0, 1.0, 4.0),
             vz_window_frames = 3
         )
         self.last_fps = 20.0 # Valeur par défaut pour le seuil initial

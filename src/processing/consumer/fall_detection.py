@@ -17,7 +17,7 @@ class FallDetector:
         self, 
         fall_threshold_frames=15, 
         valid_zone=(-25, 25, 5, 95),
-        vz_threshold_m_s: float = -2.0,    # m/s — negative = downward
+        vz_threshold_m_s: float = -1.0,    # m/s — negative = downward
         vz_window_frames: int = 5,         # frames used for derivative
         require_vz: bool = True,           # set False → disappearance-only (original)
     ):
@@ -248,7 +248,7 @@ class FallDetector:
                     vz = 0.0
                 else:
                     # ------- Mettre en place qu'il prenne les deux valeurs négatives plus petites -------
-                    negatives = [v for v in vz_hist[:-1] if v < 0]
+                    negatives = [v for v in vz_hist if v < 0]
 
                     if negatives:
                         vz = min(negatives)  # most negative = fastest downward speed
@@ -276,7 +276,7 @@ class FallDetector:
                     continue
                 
                 # Fall register
-                if len(active_track_ids) > 1: 
+                if len(active_track_ids) >= 1: 
                     print(f"[FALL NOT ALONE] track_id={tid} | other people present — no alert")
                     event = {
                         "track_id":       tid,
