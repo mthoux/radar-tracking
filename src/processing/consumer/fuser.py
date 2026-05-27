@@ -151,6 +151,36 @@ class Fuser:
             v1 = interp1(self.pts1)
             v2 = interp2(self.pts2)
 
+            # --- DEBUG: what angle is each radar seeing the strongest signal at? ---
+            if not hasattr(self, '_debug_frame'): self._debug_frame = 0
+            self._debug_frame += 1
+
+            if self._debug_frame % 10 == 0:
+                # Find the Cartesian point where each radar sees maximum signal
+                max_idx1 = np.argmax(v1)
+                max_idx2 = np.argmax(v2)
+                
+                # Get the phi and r at that point in each radar's local frame
+                best_phi1 = np.degrees(self.pts1[max_idx1, 0])
+                best_r1   = self.pts1[max_idx1, 1] * self.range_res  # convert bins to meters
+                best_phi2 = np.degrees(self.pts2[max_idx2, 0])
+                best_r2   = self.pts2[max_idx2, 1] * self.range_res
+
+                # Also get the Cartesian position of the peak
+                X_flat = self.X.ravel()
+                Y_flat = self.Y.ravel()
+                peak_x1 = X_flat[max_idx1] * self.range_res
+                peak_y1 = Y_flat[max_idx1] * self.range_res
+                peak_x2 = X_flat[max_idx2] * self.range_res
+                peak_y2 = Y_flat[max_idx2] * self.range_res
+
+                print(f"--- Frame {self._debug_frame} ---")
+                print(f"  R1 yelling → az={best_phi1:+.1f}°  r={best_r1:.2f}m  "
+                    f"| Cartesian ({peak_x1:+.2f}m, {peak_y1:.2f}m)  | max_val={np.max(v1):.4f}")
+                print(f"  R2 yelling → az={best_phi2:+.1f}°  r={best_r2:.2f}m  "
+                    f"| Cartesian ({peak_x2:+.2f}m, {peak_y2:.2f}m)  | max_val={np.max(v2):.4f}")
+                print(f"  Δ Cartesian: dx={abs(peak_x1-peak_x2):.2f}m  dy={abs(peak_y1-peak_y2):.2f}m")
+
             # SNR-weighted average fusion:
             # - Strong signal in both radars → both contribute equally → real target ✅
             # - Strong signal in R1, weak sidelobe in R2 → R1 dominates → sidelobe suppressed ✅
