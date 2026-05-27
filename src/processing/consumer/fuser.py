@@ -3,6 +3,7 @@ from scipy.interpolate import RegularGridInterpolator
 from direct.task import Task
 from typing import Dict, Any, List
 import serial
+import matplotlib.pyplot as plt
 
 # Local imports
 from src.processing.consumer.gtrack.config import Detection
@@ -40,11 +41,14 @@ class Fuser:
         self.snr_threshold = cfg_gtrack.min_snr_threshold
         self.fusion_threshold = 0.01 # change for 0.05 if you want single tracking
         self.range_res = cfg_radar["range_res"]
+        self.width = cfg_radar["width"]
  
         # ---------- FUSION DEFINITIONS ----------
         
         # Geometric Offsets
-        self.x1, self.x2 = +cfg_radar["D_x"]/(2 * self.range_res),  -cfg_radar["D_x"]/(2 * self.range_res) # convert in bins
+        #self.x1, self.x2 = +cfg_radar["D_x"]/2 * self.range_res,  -cfg_radar["D_x"]/2 * self.range_res # convert in bins
+        self.x1 = +(cfg_radar["D_x"] / 2) / self.range_res 
+        self.x2 = -(cfg_radar["D_x"] / 2) / self.range_res 
         self.angle_1, self.angle_2 = cfg_radar["angle_1"], cfg_radar["angle_2"]
 
         # Define Cartesian Grid for Fusion
@@ -110,6 +114,12 @@ class Fuser:
         self.alpha = cfg_radar["alpha_smoothing"]
         self.last_Z = None
 
+        # --- INITIALISATION PLOT NON-BLOQUANT ---
+        plt.ion()  # Mode interactif activé
+        self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2, figsize=(10, 4))
+        self.im1 = None
+        self.im2 = None
+
     def _get_latest_from_queues(self):
         """
         Drains all messages from input queues to ensure we only process the 
@@ -151,6 +161,35 @@ class Fuser:
             
             v1 = interp1(self.pts1)
             v2 = interp2(self.pts2)
+
+            # --- BLOC DE DEBUG VISUEL FLUIDE (NON-BLOQUANT) ---
+            matrice_R1 = np.abs(v1.reshape(self.X.shape))
+            matrice_R2 = np.abs(v2.reshape(self.X.shape))
+
+            if self.im1 is None:
+                # Premier affichage : Configuration des axes et des colorbars
+                extent_axes = [-self.width, self.width, self.y_grid[0], self.y_grid[-1]]
+                self.im1 = self.ax1.imshow(matrice_R1, extent=extent_axes, origin='lower', aspect='auto', cmap='jet')
+                self.ax1.set_title("Radar 1 (Cartésien - Mètres)")
+                self.ax1.set_xlabel("X (m)")
+                self.ax1.set_ylabel("Y (m)")
+                self.fig.colorbar(self.im1, ax=self.ax1)
+
+                self.im2 = self.ax2.imshow(matrice_R2, extent=extent_axes, origin='lower', aspect='auto', cmap='jet')
+                self.ax2.set_title("Radar 2 (Cartésien - Mètres)")
+                self.ax2.set_xlabel("X (m)")
+                self.fig.colorbar(self.im2, ax=self.ax2)
+            else:
+                # Rafraîchissement ultra-rapide des données sans recréer la fenêtre
+                self.im1.set_data(matrice_R1)
+                self.im2.set_data(matrice_R2)
+                # Ajustement dynamique des contrastes
+                self.im1.set_clim(vmin=matrice_R1.min(), vmax=matrice_R1.max())
+                self.im2.set_clim(vmin=matrice_R2.min(), vmax=matrice_R2.max())
+            
+            self.fig.canvas.draw_idle()
+            self.fig.canvas.flush_events()  # Permet à Matplotlib de mettre à jour le rendu sans bloquer
+            # --------------------------------------------------
 
             both_see   = (v1 > self.fusion_threshold) & (v2 > self.fusion_threshold)
             either_see = (v1 > self.fusion_threshold) | (v2 > self.fusion_threshold)

@@ -38,16 +38,8 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
     chirp_loops = cfg_radar["num_doppler"]
     adc_samples = cfg_radar["num_range"]
 
-    last_frame = np.zeros((num_rx * num_tx, chirp_loops, adc_samples), dtype=np.complex64)
-
     # Get the antenna positions
     x_locs, _, _ = get_ant_pos_2d(num_tx*num_rx, adc_samples, num_rx)
-
-    # --- AJOUT POUR LE BG REMOVAL ---
-    clutter_frames = []
-    CLUTTER_LEARN_LIMIT = 50
-    clutter_map = None
-    do_bg_removal = True # À mettre en config idéalement
 
     # Setup the DCA1000
     print("⌛️ Starting producer for DCA1000 with ip " + static_ip + " and system ip " + system_ip)
@@ -69,7 +61,7 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
             # Apply Hamming window
             adc_windowed = raw * np.hamming(adc_samples)
 
-            # ✅ Reshape the data to (num_tx*num_rx, chirp_loops, adc_samples)
+            # Reshape the data to (num_tx*num_rx, chirp_loops, adc_samples)
             beat_freq_data = adc_windowed.reshape(chirp_loops, num_tx, num_rx, adc_samples)
             beat_freq_data = beat_freq_data.transpose(1, 2, 0, 3)
             beat_freq_data = beat_freq_data.reshape(num_tx*num_rx, chirp_loops, adc_samples)
@@ -77,27 +69,7 @@ def process(q, cfg_radar, cfg_cfar, config_port, data_port, static_ip, system_ip
             # Apply FFT along the range dimension
             range_fft = np.fft.fft(beat_freq_data, axis=-1)
             range_fft_subset = range_fft[:, :, r_idxs]
-
-            # 3. BACKGROUND REMOVAL
-            # if do_bg_removal:
-            #     if len(clutter_frames) < CLUTTER_LEARN_LIMIT:
-            #         # Phase d'apprentissage : on stocke la frame
-            #         # Conseil : stocke la moyenne sur les chirps pour économiser la mémoire
-            #         clutter_frames.append(np.mean(range_fft_subset, axis=1))
-
-            #     else:
-            #         if clutter_map is None:
-            #             # On calcule la carte moyenne une seule fois
-            #             clutter_map = np.mean(clutter_frames, axis=0)
-            #             print("✅ Clutter map calculée. Filtrage actif.")
-                        
-            #         # Soustraction cohérente : on aligne les dimensions du clutter_map (Ant, Range)
-            #         # avec range_fft_subset (Ant, Chirp, Range) via np.newaxis
-            #         range_fft_subset = range_fft_subset - clutter_map[:, np.newaxis, :]
-
-            # Set the static range indices to zero
-            range_fft_subset[:, :, 0:10] = 0
-            #range_fft_subset[:, :, 120:150] = 0 #pq on a enlevé ça ?
+            range_fft_subset[:, :, 0:10] = 0 # Set the static range indices to zero
 
             # Compute CFAR
             dets = process_frame(range_fft_subset, cfg_cfar)
