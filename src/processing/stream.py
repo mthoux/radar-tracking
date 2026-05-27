@@ -141,7 +141,7 @@ def main():
         meas_noise_range=0.5,           # was 2.0 — tighter range gate
         meas_noise_az=0.05,              # was 1 — ±6° instead of ±57°
         gating_threshold=3,
-        alloc_range_gate=0.3,           # was 0.5 — tighter
+        alloc_range_gate=0.5,           # was 0.5 — tighter
         alloc_az_gate=np.deg2rad(7),    # was 10° — tighter
         alloc_vel_gate=20,
         min_cluster_points=6,

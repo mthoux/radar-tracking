@@ -192,7 +192,7 @@ class Fuser:
                     to_plot = np.clip(to_plot - self.clutter_map, 0, None)
                     # Only renormalize if there's meaningful signal
                     norm_factor2 = np.max(to_plot)
-                    if norm_factor2 > 0.4:  # threshold — only normalize real signal
+                    if norm_factor2 > 0.6:  # threshold — only normalize real signal
                         to_plot /= norm_factor2
                     else:
                         to_plot[:] = 0.0  # nothing meaningful → zero out entirely
