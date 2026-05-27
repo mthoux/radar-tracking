@@ -27,7 +27,7 @@ def configure_ax_bf(ax, phi, r, vmin=0, vmax=0.1):
     """
 
     ax.set_theta_zero_location('N')
-    ax.set_theta_direction(-1)
+    ax.set_theta_direction(1)
     phi_deg = np.degrees(phi)
     ax.set_thetamin(np.min(phi_deg))
     ax.set_thetamax(np.max(phi_deg))
