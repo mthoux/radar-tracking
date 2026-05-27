@@ -39,7 +39,6 @@ class Fuser:
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
         self.snr_threshold = cfg_gtrack.min_snr_threshold
-        self.fusion_threshold = 0.01  # lower = more sensitive, 0.05 for single tracking
         self.range_res = cfg_radar["range_res"]
 
         # ---------- POSITION SMOOTHING ----------
@@ -74,7 +73,7 @@ class Fuser:
         # Back-sampling Mapping (Cartesian -> Polar display)
         PHI_MESH, R_MESH = np.meshgrid(self.phi, self.r_idxs, indexing='ij')
         self.pts_back = np.column_stack((
-            (R_MESH * np.cos(PHI_MESH)).ravel(),  # y-coord (depth)  = R * cos(phi)
+            (R_MESH * np.cos(PHI_MESH)).ravel(),  # y-coord (depth)   = R * cos(phi)
             (R_MESH * np.sin(PHI_MESH)).ravel()   # x-coord (lateral) = R * sin(phi)
         ))
         self.POLAR_SHAPE = PHI_MESH.shape
@@ -140,8 +139,8 @@ class Fuser:
             bf_1, bf_2 = self.latest_msg[0], self.latest_msg[1]
 
             # --- NORMALIZE RAW RADAR DATA ---
-            # Normalize each radar independently before fusion so fusion_threshold
-            # operates on a consistent 0→1 scale
+            # Normalize each radar independently before fusion so the
+            # SNR-weighted average operates on a consistent 0→1 scale
             bf_1 = bf_1 / (np.max(bf_1) + 1e-9)
             bf_2 = bf_2 / (np.max(bf_2) + 1e-9)
             
@@ -152,25 +151,17 @@ class Fuser:
             v1 = interp1(self.pts1)
             v2 = interp2(self.pts2)
 
-            # Confidence-weighted fusion:
-            # both radars agree  → full confidence
-            # only one sees it   → partial confidence (likely edge of FOV)
-            # neither sees it    → suppress
-            both_see   = (v1 > self.fusion_threshold) & (v2 > self.fusion_threshold)
-            either_see = (v1 > self.fusion_threshold) | (v2 > self.fusion_threshold)
-
-            Z_cart = np.where(
-                both_see,
-                np.maximum(v1, v2),
-                np.where(
-                    either_see,
-                    0.8 * np.maximum(v1, v2),
-                    0.0
-                )
-            ).reshape(self.X.shape)
+            # SNR-weighted average fusion:
+            # - Strong signal in both radars → both contribute equally → real target ✅
+            # - Strong signal in R1, weak sidelobe in R2 → R1 dominates → sidelobe suppressed ✅
+            # - Two real people → each person strong in both radars → stay separated ✅
+            w1 = np.clip(v1, 0, None)
+            w2 = np.clip(v2, 0, None)
+            total_w = w1 + w2 + 1e-9  # avoid division by zero
+            Z_cart = ((w1 * v1 + w2 * v2) / total_w).reshape(self.X.shape)
 
             # --- SPATIAL BLUR ---
-            # Merges the two slightly offset blobs caused by the baseline offset
+            # Merges any residual offset between the two radar blobs
             # sigma=1.5 bins ≈ 6.6cm — merges nearby duplicates, preserves person separation
             Z_cart = gaussian_filter(Z_cart, sigma=1.5)
 
@@ -203,8 +194,8 @@ class Fuser:
                         print("✅ Background subtraction completed.")
                 elif self.clutter_map is not None:
                     to_plot = np.clip(to_plot - self.clutter_map, 0, None)
-                    # Only renormalize if meaningful signal remains
-                    # threshold prevents noise amplification when room is empty
+                    # Only renormalize if meaningful signal remains.
+                    # Threshold prevents noise amplification when room is empty.
                     norm_factor2 = np.max(to_plot)
                     if norm_factor2 > 0.6:
                         to_plot /= norm_factor2
@@ -212,8 +203,8 @@ class Fuser:
                         to_plot[:] = 0.0
 
             # --- SHARPENING ---
-            # Increases contrast between peaks and background
-            # **8 creates sharp distinct blobs — important for multi-person separation
+            # Increases contrast between peaks and background.
+            # **8 creates sharp distinct blobs — important for multi-person separation.
             to_plot = to_plot ** 8
 
             # --- GTRACKING ---
@@ -223,8 +214,8 @@ class Fuser:
                 # Find all points above SNR threshold
                 indices = np.argwhere(to_plot >= self.snr_threshold)
 
-                # Sort by SNR descending — give GTrack strongest detections first
-                # This ensures track seeding happens on real targets before noise
+                # Sort by SNR descending — give GTrack strongest detections first.
+                # This ensures track seeding happens on real targets before noise.
                 if len(indices) > 0:
                     snr_values = to_plot[indices[:, 0], indices[:, 1]]
                     sorted_idx = np.argsort(snr_values)[::-1]
@@ -240,7 +231,7 @@ class Fuser:
 
                 # --- POSITION SMOOTHING ---
                 # Decoupled from Kalman filter — smooths display jitter without
-                # widening the Kalman gate (which would cause track stealing)
+                # widening the Kalman gate (which would cause track stealing).
                 for t in tracks:
                     uid = t['uid']
                     x, y = t['pos']
