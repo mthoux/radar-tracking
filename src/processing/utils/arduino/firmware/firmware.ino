@@ -10,6 +10,10 @@ const int GREEN_LED_PIN = 12;
 const int RED_LED_PIN   = 11;   
 const int BLUE_LED_PIN  = 10;   
 
+// --- WATCHDOG CONFIGURATION ---
+unsigned long last_communication_time = 0;
+const unsigned long WATCHDOG_TIMEOUT = 1000; // Time in ms before emergency cutoff
+
 void setup() {
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(RED_LED_PIN, OUTPUT);
@@ -24,7 +28,10 @@ void setup() {
 
 void loop() {
   if (Serial.available() > 0) {
-    char command = Serial.read(); 
+    char command = Serial.read();
+
+    // Refresh the watchdog timer on ANY received character
+    last_communication_time = millis();
 
     switch (command) {
       // --- GREEN LED (Tracking) ---
@@ -41,5 +48,12 @@ void loop() {
 
       default:  break; 
     }
+  }
+
+  // --- WATCHDOG TIMEOUT CHECK ---
+  if (millis() - last_communication_time > WATCHDOG_TIMEOUT) {
+    digitalWrite(GREEN_LED_PIN, LOW);
+    digitalWrite(RED_LED_PIN, LOW);
+    digitalWrite(BLUE_LED_PIN, LOW);
   }
 }

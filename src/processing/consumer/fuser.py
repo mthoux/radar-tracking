@@ -105,6 +105,7 @@ class Fuser:
         try:
             self.arduino = serial.Serial(cfg_arduino["port"], 9600, timeout=0.1)
             print("✅ Arduino detected and connected.")
+            self.arduino.write(b'B')
         except Exception as e:
             if cfg_arduino["warning"]:
                 print(f"⚠️ Arduino not detected : {e}. Streaming without physical response.")
@@ -288,7 +289,7 @@ class Fuser:
                 tracks = gtrack_output.get('tracks', [])
 
 
-            # --- LOGIQUE DE DETECTION DE CHUTE (Dans Fuser.py) ---
+            # --- LOGIQUE DE DETECTION DE CHUTE ---
             if is_learning:
                 fall_events = []
             else:
@@ -300,16 +301,31 @@ class Fuser:
                 # C. Détection
                 fall_events = self.fall_detector.update(active_ids)
 
-            # --- LOGIQUE LED ARDUINO ---
+            # --- ARDUINO SIGNALLING LOGIC ---
             if self.arduino:
                 try:
-                    self.arduino.write(b'G' if tracks else b'g') # Write Green LED for tracking
-                    real_falls = [e for e in fall_events if not e.get("not_alone")]
-                    if real_falls: self.arduino.write(b'R') # Write red LED for falls where person alone
-                    else: self.arduino.write(b'r') # Shutdown red LED when no more falls
-                except:
+                    # 1. Background Learning Handler (Blue Light)
+                    if is_learning:
+                        self.arduino.write(b'B')  # Keep Blue LED ON during calibration
+                    else:
+                        self.arduino.write(b'b')  # Turn Blue LED OFF once complete
+
+                        # 2. Tracking Profile Handler (Green Light)
+                        if tracks:
+                            self.arduino.write(b'G')  # Target tracked
+                        else:
+                            self.arduino.write(b'g')  # Clear tracking field
+
+                        # 3. Critical Emergency Alarm Handler (Red Light + Buzzer)
+                        real_falls = [e for e in fall_events if not e.get("not_alone")]
+                        if real_falls: 
+                            self.arduino.write(b'R')  # Fire safety sirens
+                        else: 
+                            self.arduino.write(b'r')  # Acknowledge and silence alarm
+                        
+                except Exception as serial_err:
                     self.arduino = None
-                    print("❌ Lost connection with Arduino.")
+                    print(f"❌ Connection lost with Arduino hardware interface: {serial_err}")
 
             # --- CALCUL DES PROFILS ---
             range_profile = np.max(to_plot, axis=0)
