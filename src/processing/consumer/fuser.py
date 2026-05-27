@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
+from scipy.ndimage import gaussian_filter
 from direct.task import Task
 from typing import Dict, Any, List
 import serial
@@ -38,13 +39,18 @@ class Fuser:
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
         self.snr_threshold = cfg_gtrack.min_snr_threshold
-        self.fusion_threshold = 0.01 # change for 0.05 if you want single tracking
+        self.fusion_threshold = 0.01  # lower = more sensitive, 0.05 for single tracking
         self.range_res = cfg_radar["range_res"]
- 
+
+        # ---------- POSITION SMOOTHING ----------
+        self.smooth_positions = {}  # uid → smoothed (x, y)
+        self.pos_alpha = 0.2        # 0.1=very smooth/laggy, 0.5=reactive
+
         # ---------- FUSION DEFINITIONS ----------
         
-        # Geometric Offsets
-        self.x1, self.x2 = +cfg_radar["D_x"]/2 * self.range_res,  -cfg_radar["D_x"]/2 * self.range_res # convert in bins
+        # Geometric Offsets (converted to bins)
+        self.x1 = +cfg_radar["D_x"] / 2 / self.range_res
+        self.x2 = -cfg_radar["D_x"] / 2 / self.range_res
         self.angle_1, self.angle_2 = cfg_radar["angle_1"], cfg_radar["angle_2"]
 
         # Define Cartesian Grid for Fusion
@@ -55,21 +61,21 @@ class Fuser:
         # PRE-COMPUTATION: Mapping Polar coordinates to Cartesian points once.
         # This prevents costly trigonometric calculations inside the processing loop.
         
-        # Radar 1 Mapping (Correction de l'ordre arctan2)
+        # Radar 1 Mapping
         phi1 = np.arctan2((self.X - self.x1).ravel(), self.Y.ravel()) - self.angle_1
-        r1 = np.hypot(self.X.ravel() - self.x1, self.Y.ravel())
+        r1   = np.hypot(self.X.ravel() - self.x1, self.Y.ravel())
         self.pts1 = np.column_stack((phi1, r1))
 
-        # Radar 2 Mapping (Correction de l'ordre arctan2)
+        # Radar 2 Mapping
         phi2 = np.arctan2((self.X - self.x2).ravel(), self.Y.ravel()) - self.angle_2
-        r2 = np.hypot(self.X.ravel() - self.x2, self.Y.ravel())
+        r2   = np.hypot(self.X.ravel() - self.x2, self.Y.ravel())
         self.pts2 = np.column_stack((phi2, r2))
 
         # Back-sampling Mapping (Cartesian -> Polar display)
         PHI_MESH, R_MESH = np.meshgrid(self.phi, self.r_idxs, indexing='ij')
         self.pts_back = np.column_stack((
-            (R_MESH * np.cos(PHI_MESH)).ravel(), # y-coord (profondeur) = R * cos(phi)
-            (R_MESH * np.sin(PHI_MESH)).ravel()  # x-coord (largeur) = R * sin(phi)
+            (R_MESH * np.cos(PHI_MESH)).ravel(),  # y-coord (depth)  = R * cos(phi)
+            (R_MESH * np.sin(PHI_MESH)).ravel()   # x-coord (lateral) = R * sin(phi)
         ))
         self.POLAR_SHAPE = PHI_MESH.shape
 
@@ -84,14 +90,14 @@ class Fuser:
         self.clutter_frames: List[np.ndarray] = []
         self.clutter_map: np.ndarray = None
 
-        # Initialisation du détecteur de chute
+        # Fall detector
         self.fall_detector = FallDetector(fall_threshold_frames=20)
-        self.last_fps = 20.0 # Valeur par défaut pour le seuil initial
+        self.last_fps = 20.0
 
-        self.disappear_counter = {} 
-        self.DISAPPEAR_LIMIT = 5 # Nombre de frames de tolérance
+        self.disappear_counter = {}
+        self.DISAPPEAR_LIMIT = 5
 
-        # ARDUINO OPTIONNEL
+        # ARDUINO (optional)
         self.arduino = None
         try:
             self.arduino = serial.Serial(cfg_arduino["port"], 9600, timeout=0.1)
@@ -100,7 +106,7 @@ class Fuser:
             if cfg_arduino["warning"]:
                 print(f"⚠️ Arduino not detected : {e}. Streaming without physical response.")
 
-        # Smoothing
+        # Temporal smoothing (EMA on Z_cart)
         self.do_smoothing = cfg_radar["smoothing"]
         self.alpha = cfg_radar["alpha_smoothing"]
         self.last_Z = None
@@ -111,19 +117,16 @@ class Fuser:
         most recent frame (avoids lag accumulation).
         """
         for i, q in enumerate([self.q1, self.q2]):
-
             try:
                 while not q.empty():
                     msg = q.get_nowait()
                     if msg[0] == 'bev':
                         self.latest_msg[i] = msg[1]
                         self.msg_ready[i] = True
-
             except:
                 pass
         return any(self.msg_ready)
 
-    # Data processing is performed here
     def process(self, task: Task) -> int:
         """
         Main processing loop called by the task manager.
@@ -135,18 +138,24 @@ class Fuser:
         # 2. Process only if we have a frame from both radars
         if has_new_data and all(self.msg_ready):
             bf_1, bf_2 = self.latest_msg[0], self.latest_msg[1]
+
+            # --- NORMALIZE RAW RADAR DATA ---
+            # Normalize each radar independently before fusion so fusion_threshold
+            # operates on a consistent 0→1 scale
+            bf_1 = bf_1 / (np.max(bf_1) + 1e-9)
+            bf_2 = bf_2 / (np.max(bf_2) + 1e-9)
             
             # --- FUSION ENGINE ---
-            # Instantiate interpolators (Note: Moving to map_coordinates would be even faster)
             interp1 = RegularGridInterpolator((self.phi, self.r_idxs), bf_1, bounds_error=False, fill_value=0)
             interp2 = RegularGridInterpolator((self.phi, self.r_idxs), bf_2, bounds_error=False, fill_value=0)
 
-            # Map both radars to the same Cartesian space and fuse using Maximum Intensity Projection
-            #Z_cart = np.maximum(interp1(self.pts1), interp2(self.pts2)).reshape(self.X.shape)
-            
             v1 = interp1(self.pts1)
             v2 = interp2(self.pts2)
 
+            # Confidence-weighted fusion:
+            # both radars agree  → full confidence
+            # only one sees it   → partial confidence (likely edge of FOV)
+            # neither sees it    → suppress
             both_see   = (v1 > self.fusion_threshold) & (v2 > self.fusion_threshold)
             either_see = (v1 > self.fusion_threshold) | (v2 > self.fusion_threshold)
 
@@ -160,26 +169,30 @@ class Fuser:
                 )
             ).reshape(self.X.shape)
 
-            # --- PERSISTENCE (Lissage temporel) ---
+            # --- SPATIAL BLUR ---
+            # Merges the two slightly offset blobs caused by the baseline offset
+            # sigma=1.5 bins ≈ 6.6cm — merges nearby duplicates, preserves person separation
+            Z_cart = gaussian_filter(Z_cart, sigma=1.5)
+
+            # --- TEMPORAL SMOOTHING (EMA) ---
             if self.do_smoothing:
-                if self.last_Z is None: self.last_Z = Z_cart
+                if self.last_Z is None:
+                    self.last_Z = Z_cart
                 Z_cart = (self.alpha * Z_cart) + ((1 - self.alpha) * self.last_Z)
                 self.last_Z = Z_cart
 
-            # On continue le process avec la version lissée
+            # --- BACK-SAMPLE TO POLAR FOR DISPLAY ---
             interp_fused = RegularGridInterpolator((self.y_grid, self.x_grid), Z_cart, bounds_error=False, fill_value=0)
-       
             Z_polar = interp_fused(self.pts_back).reshape(self.POLAR_SHAPE)
 
-            
             to_plot = np.abs(Z_polar)
-            #normalize first 
+
+            # --- FIRST NORMALIZATION (before clutter learning) ---
             norm_factor = np.max(to_plot)
             if norm_factor > 0:
                 to_plot /= norm_factor
-            
 
-           # --- BACKGROUND SUBTRACTION ---
+            # --- BACKGROUND SUBTRACTION ---
             is_learning = len(self.clutter_frames) < self.CLUTTER_LEARN_LIMIT
             
             if self.do_bg_removal:
@@ -187,91 +200,103 @@ class Fuser:
                     self.clutter_frames.append(to_plot.copy())
                     self.clutter_map = np.mean(self.clutter_frames, axis=0)
                     if len(self.clutter_frames) == self.CLUTTER_LEARN_LIMIT - 1:
-                        print("Background subtraction completed")
+                        print("✅ Background subtraction completed.")
                 elif self.clutter_map is not None:
                     to_plot = np.clip(to_plot - self.clutter_map, 0, None)
-                    # Only renormalize if there's meaningful signal
+                    # Only renormalize if meaningful signal remains
+                    # threshold prevents noise amplification when room is empty
                     norm_factor2 = np.max(to_plot)
-                    if norm_factor2 > 0.6:  # threshold — only normalize real signal
+                    if norm_factor2 > 0.6:
                         to_plot /= norm_factor2
                     else:
-                        to_plot[:] = 0.0  # nothing meaningful → zero out entirely
-            
-            # Normalize after background removal to maintain consistent SNR thresholds
-            # norm_factor = np.max(to_plot)
-            # if norm_factor > 0:
-            #     to_plot /= norm_factor        
-            
-            # Sharpen the heatmap for point detection
+                        to_plot[:] = 0.0
+
+            # --- SHARPENING ---
+            # Increases contrast between peaks and background
+            # **8 creates sharp distinct blobs — important for multi-person separation
             to_plot = to_plot ** 8
 
             # --- GTRACKING ---
             if is_learning:
                 tracks = []
             else:
-                # 1. On trouve tous les points au-dessus du seuil
+                # Find all points above SNR threshold
                 indices = np.argwhere(to_plot >= self.snr_threshold)
 
+                # Sort by SNR descending — give GTrack strongest detections first
+                # This ensures track seeding happens on real targets before noise
                 if len(indices) > 0:
-                    # 2. On récupère les valeurs de SNR pour ces indices
                     snr_values = to_plot[indices[:, 0], indices[:, 1]]
-                    
-                    # 3. On trie par ordre décroissant (du plus grand SNR au plus petit)
                     sorted_idx = np.argsort(snr_values)[::-1]
                     indices = indices[sorted_idx]
 
-                # 4. Optimization: On garde les 200 m   eilleurs pour éviter de saturer le tracker
-                # detections = [
-                #     Detection(r=self.r_idxs[i]*self.range_res, az=np.pi/2 - self.phi[j], v=0, snr=to_plot[j, i])
-                #     for j, i in indices[:200]  # Ici, ce sont bien les 200 meilleurs !
-                # ]
-                
                 detections = [
-                    Detection(r=self.r_idxs[i]*self.range_res, az=self.phi[j], v=0, snr=to_plot[j, i])
+                    Detection(r=self.r_idxs[i] * self.range_res, az=self.phi[j], v=0, snr=to_plot[j, i])
                     for j, i in indices[:200]
                 ]
 
                 gtrack_output = self.tracker.step(detections)
                 tracks = gtrack_output.get('tracks', [])
 
+                # --- POSITION SMOOTHING ---
+                # Decoupled from Kalman filter — smooths display jitter without
+                # widening the Kalman gate (which would cause track stealing)
+                for t in tracks:
+                    uid = t['uid']
+                    x, y = t['pos']
+                    if uid not in self.smooth_positions:
+                        self.smooth_positions[uid] = (x, y)
+                    else:
+                        sx, sy = self.smooth_positions[uid]
+                        self.smooth_positions[uid] = (
+                            self.pos_alpha * x + (1 - self.pos_alpha) * sx,
+                            self.pos_alpha * y + (1 - self.pos_alpha) * sy
+                        )
+                    t['pos'] = np.array(self.smooth_positions[uid])
 
-            # --- LOGIQUE DE DETECTION DE CHUTE (Dans Fuser.py) ---
+                # Clean up positions for tracks that no longer exist
+                active_uids = {t['uid'] for t in tracks}
+                for uid in list(self.smooth_positions.keys()):
+                    if uid not in active_uids:
+                        del self.smooth_positions[uid]
+
+            # --- FALL DETECTION ---
             if is_learning:
                 fall_events = []
             else:
                 active_ids = {t['uid'] for t in tracks}
                 
-                # Mise à jour des positions
                 for t in tracks:
                     uid = t['uid']
+                    # Uses smoothed position (already updated above)
                     self.fall_detector.last_positions[uid] = (t['pos'][0], t['pos'][1])
                 
-                # C. Détection
                 fall_events = self.fall_detector.update(active_ids)
 
-            # --- LOGIQUE LED ARDUINO ---
+            # --- ARDUINO LED ---
             if self.arduino:
                 try:
-                    self.arduino.write(b'1' if tracks else b'0') # Write Green LED for tracking
-                    if fall_events: self.arduino.write(b'F') # Write red LED for falls
-                    else: self.arduino.write(b'N') # Shutdown red LED when no more falls
+                    self.arduino.write(b'1' if tracks else b'0')
+                    if fall_events:
+                        self.arduino.write(b'F')
+                    else:
+                        self.arduino.write(b'N')
                 except:
                     self.arduino = None
                     print("❌ Lost connection with Arduino.")
 
-            # --- CALCUL DES PROFILS ---
-            range_profile = np.max(to_plot, axis=0)
+            # --- PROFILES ---
+            range_profile   = np.max(to_plot, axis=0)
             azimuth_profile = np.max(to_plot, axis=1)
 
-            # --- DATA OUTPUT ---
-            # Send this to the visualizer
+            # --- OUTPUT ---
             try:
                 if not self.q_out.full():
                     self.q_out.put_nowait({
                         "heatmap": to_plot,
                         "tracks": tracks,
-                        "fall_events": fall_events, # On envoie les nouveaux événements
-                        "all_falls": self.fall_detector.fall_events, # Historique complet
+                        "fall_events": fall_events,
+                        "all_falls": self.fall_detector.fall_events,
                         "learning_left": self.CLUTTER_LEARN_LIMIT - len(self.clutter_frames),
                         "profile": {
                             "range": range_profile,
@@ -279,8 +304,8 @@ class Fuser:
                         }
                     })
             except:
-                pass # Queue full, skip frame to maintain real-time
-            
+                pass  # Queue full — skip frame to maintain real-time
+
             # Reset readiness for next sync point
             self.msg_ready = [False, False]
 
