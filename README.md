@@ -25,6 +25,32 @@ radar-tracking/
 └── src/            # Core source code
 ```
 
+## 💡 Context & Motivation
+
+### The Public Health Challenge
+* [cite_start]**Critical Risk:** 1/3 of adults aged 65+ fall each year, making it the leading cause of accidental death among older adults[cite: 4, 5, 8].
+* [cite_start]**The "Long Lie" Risk:** Lying on the floor for more than an hour drastically increases complications, leading to a 50% mortality rate within 6 months[cite: 32, 34].
+
+### Why mmWave Radars over Cameras?
+[cite_start]Privacy preservation is a major concern: **80% to 90% of older adults refuse optical cameras** in private spaces like bedrooms or bathrooms[cite: 36, 38, 40]. 
+
+[cite_start]Our system uses **TI mmWave Radars** to guarantee 100% anonymized, passive, and fully automatic sensing[cite: 48, 66, 68, 78, 86]:
+
+| Metric | Optical Cameras | Wearables (Bracelets) | Radar mmWave (Ours) |
+| :--- | :---: | :---: | :---: |
+| **Privacy Preservation** | [cite_start]Low [cite: 75] | [cite_start]High [cite: 67] | [cite_start]**Superior (Anonymized)** [cite: 68] |
+| **Auto-Detection** | [cite_start]Yes [cite: 73] | [cite_start]No (Manual Action) [cite: 80] | [cite_start]**Fully Automatic** [cite: 78] |
+| **Low Light / Bathroom** | [cite_start]Non [cite: 70] | [cite_start]Yes [cite: 83] | [cite_start]**Yes (RF Sensing)** [cite: 84] |
+| **User Compliance** | [cite_start]Low [cite: 75] | [cite_start]Medium (Often forgotten) [cite: 85] | [cite_start]**High (Passive sensing)** [cite: 86] |
+
+## 📂 Project Deliverables & Reports
+
+This repository contains the complete documentation, academic reports, and presentations for this Bachelor project:
+
+* **📄 [Project Proposal](./docs/Project_Proposal.pdf)**
+* **📄 [Project Report](./docs/Project_Report.pdf)** – A comprehensive deep dive into the asynchronous signal processing pipeline, architectural choices, and performance evaluation.
+* **📊 [Project Presentation Slides](./docs/Project_Presentation.pdf)** – The defense slide deck covering the public health challenges, technology comparisons, and live tracking results.
+
 # Usage
 
 Start streaming with executing ./stream.sh 
