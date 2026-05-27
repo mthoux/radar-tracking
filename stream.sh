@@ -101,19 +101,34 @@ if [ "$1" == "-init" ]; then
     # ==========================================
     echo "🔌 Detecting available USB ports..."
 
-    # Pair A: Purely numerical ports sorted
-    PAIRE_A=($(ls /dev/cu.usbmodem* 2>/dev/null | grep -v "usbmodemR" | sort))
+    # 1. Arduino Detection (usbmodem follow by 5 digits: 11401)
+    ARDUINO_PORT=$(ls /dev/cu.usbmodem* 2>/dev/null | grep -E 'usbmodem[0-9]{5}$')
+
+    if [ -n "$ARDUINO_PORT" ]; then
+        echo "🤖 Arduino on port : $ARDUINO_PORT"
+    else
+        echo "ℹ️ Arduino not detected"
+    fi
+
+    # 2. Pair A: Numerical radar ports (exclude Arduino port if exist)
+    if [ -n "$ARDUINO_PORT" ]; then
+        PAIRE_A=($(ls /dev/cu.usbmodem* 2>/dev/null | grep -v "usbmodemR" | grep -v "$ARDUINO_PORT" | sort))
+    else
+        PAIRE_A=($(ls /dev/cu.usbmodem* 2>/dev/null | grep -v "usbmodemR" | sort))
+    fi
+    
     PAIRE_A_P1="${PAIRE_A[0]}"
     PAIRE_A_P2="${PAIRE_A[1]}"
 
-    # Pair B: Static serial number ports
+    # 3. Pair B: Static serial number ports
     PAIRE_B=($(ls /dev/cu.usbmodemR* 2>/dev/null | sort))
     PAIRE_B_P1="${PAIRE_B[0]}"
     PAIRE_B_P2="${PAIRE_B[1]}"
 
     # Fail-safe check
     if [ -z "$PAIRE_A_P1" ] || [ -z "$PAIRE_B_P1" ]; then
-        echo "🚨 Error: Could not detect all 4 required USB ports."
+        echo "🚨 Error: Could not detect all 4 required USB ports for Radars."
+        echo "Détail - PAIR A P1: $PAIRE_A_P1, PAIR B P1: $PAIRE_B_P1"
         exit 1
     fi
 
