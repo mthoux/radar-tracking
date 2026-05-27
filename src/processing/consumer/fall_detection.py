@@ -283,7 +283,9 @@ class FallDetector:
                     "timestamp": time.time(),
                 }
                 new_falls.append(event)
-                self.fall_events.append(event)
+                # Rajouter à l'historique que si la personne est seule
+                if len(active_track_ids == 0):
+                    self.fall_events.append(event)
                 self.alerted_ids.add(tid)
                 print(
                     f"[FALL DETECTED] track_id={tid} | "

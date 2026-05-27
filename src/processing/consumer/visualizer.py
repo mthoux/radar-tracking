@@ -141,12 +141,17 @@ class Visualizer(ShowBase):
 
             # 3. Update Fall Log & Title
             if data.get("fall_events"):
-                # On prend le dernier événement pour le titre
-                last_event = data["fall_events"][-1]
-                ts = time.strftime("%H:%M:%S", time.localtime(last_event["timestamp"]))
-                self.ax_3.set_title(f"⚠ CHUTE : Track {last_event['track_id']} à {ts}", color="red")
+                # Si la personne était seule
+                if (len(data["tracks"]) == 0):
+                    # On prend le dernier événement pour le titre
+                    last_event = data["fall_events"][-1]
+                    ts = time.strftime("%H:%M:%S", time.localtime(last_event["timestamp"]))
+                    self.ax_3.set_title(f"⚠ CHUTE : Track {last_event['track_id']} à {ts}", color="red")
+                # Si la personne n'était pas seule
+                else:
+                    self.ax_3.set_title(f"No need to worry, the person is not alone", color="green")
 
-            # Mise à jour de l'historique complet
+            # Mise à jour de l'historique de chutes
             history = [
                 f"{time.strftime('%H:%M:%S', time.localtime(e['timestamp']))} - ID {e['track_id']}"
                 for e in data.get("all_falls", [])
