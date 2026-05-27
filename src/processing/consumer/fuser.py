@@ -220,7 +220,8 @@ class Fuser:
             if self.arduino:
                 try:
                     self.arduino.write(b'1' if tracks else b'0') # Write Green LED for tracking
-                    if fall_events: self.arduino.write(b'F') # Write red LED for falls
+                    real_falls = [e for e in fall_events if not e.get("not_alone")]
+                    if real_falls: self.arduino.write(b'F') # Write red LED for falls where person alone
                     else: self.arduino.write(b'N') # Shutdown red LED when no more falls
                 except:
                     self.arduino = None

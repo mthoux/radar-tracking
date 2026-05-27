@@ -141,15 +141,15 @@ class Visualizer(ShowBase):
 
             # 3. Update Fall Log & Title
             if data.get("fall_events"):
-                # Si la personne était seule
-                if (len(data["tracks"]) == 0):
-                    # On prend le dernier événement pour le titre
-                    last_event = data["fall_events"][-1]
-                    ts = time.strftime("%H:%M:%S", time.localtime(last_event["timestamp"]))
+                # On prend le dernier événement pour le titre
+                last_event = data["fall_events"][-1]
+                ts = time.strftime("%H:%M:%S", time.localtime(last_event["timestamp"]))
+                # if person is not alone
+                if last_event.get("not_alone"):
+                    self.ax_3.set_title(f"Don't worry, the track {last_event['track_id']} is not alone at {ts}", color="green")
+                # if person is alone
+                else:   
                     self.ax_3.set_title(f"⚠ CHUTE : Track {last_event['track_id']} à {ts}", color="red")
-                # Si la personne n'était pas seule
-                else:
-                    self.ax_3.set_title(f"No need to worry, the person is not alone", color="green")
 
             # Mise à jour de l'historique de chutes
             history = [

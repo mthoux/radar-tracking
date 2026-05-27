@@ -276,21 +276,27 @@ class FallDetector:
                     continue
                 
                 # Fall register
-                event = {
-                    "track_id":       tid,
-                    "missing_frames": count,
-                    "vz_m_s":         vz,
-                    "timestamp": time.time(),
-                }
+                if len(active_track_ids) > 1: 
+                    print(f"[FALL NOT ALONE] track_id={tid} | other people present — no alert")
+                    event = {
+                        "track_id":       tid,
+                        "missing_frames": count,
+                        "vz_m_s":         vz,
+                        "timestamp":      time.time(),
+                        "not_alone":      True,     # Person is not alone
+                    }
+                else:
+                    print(f"[FALL DETECTED] track_id={tid} | absent {count} frames | vz={vz:.2f} m/s")
+                    event = {
+                        "track_id":       tid,
+                        "missing_frames": count,
+                        "vz_m_s":         vz,
+                        "timestamp": time.time(),
+                        "not_alone":      False,     # Person is alone
+                    }
+                    self.fall_events.append(event)   # Saved is history only if alone
                 new_falls.append(event)
-                # Rajouter à l'historique que si la personne est seule
-                if len(active_track_ids == 0):
-                    self.fall_events.append(event)
                 self.alerted_ids.add(tid)
-                print(
-                    f"[FALL DETECTED] track_id={tid} | "
-                    f"absent {count} frames | vz={vz:.2f} m/s"
-                )
 
             elif count == 0 and tid in self.alerted_ids:
                 self.alerted_ids.discard(tid)
