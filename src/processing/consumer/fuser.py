@@ -39,6 +39,7 @@ class Fuser:
         self.phi = cfg_radar["phi"]
         self.r_idxs = cfg_radar["range_idx"]
         self.snr_threshold = cfg_gtrack.min_snr_threshold
+        self.signal_threshold = cfg_gtrack.signal_threshold
         self.fusion_threshold = 0.01 # change for 0.05 if you want single tracking
         self.range_res = cfg_radar["range_res"]
         self.width = cfg_radar["width"]
@@ -99,6 +100,7 @@ class Fuser:
         self.disappear_counter = {} 
         self.DISAPPEAR_LIMIT = 5 # Nombre de frames de tolérance
         self.radar_height = cfg_radar.get("radar_mount_height", 0.0)
+        self.do_fall = cfg_radar["fall_detection_active"]
 
         # ARDUINO OPTIONNEL
         self.arduino = None

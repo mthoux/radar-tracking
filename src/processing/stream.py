@@ -103,6 +103,7 @@ def main():
         "do_bg_removal": args.bg_removal,
         "smoothing": True,
         "alpha_smoothing": 0.5,  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux),
+        "fall_detection_active": True,
         "debug": {
             "do_plot_individually": False
         }
@@ -150,8 +151,9 @@ def main():
         min_cluster_points=6,
         alloc_snr_threshold=0.5,
         min_snr_threshold=0.005,
+        signal_threshold=0.6,  # Minimum normalized signal for a point (0-1)
         init_state_cov=1.0,
-        det_to_active_count=3,          # was 1 — require 3 frames before ACTIVE
+        det_to_active_count=3,
         det_to_free_count=6,
         act_to_free_count=8,
         presence_zones=[],
