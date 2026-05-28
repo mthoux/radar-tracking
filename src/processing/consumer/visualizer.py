@@ -135,9 +135,9 @@ class Visualizer(ShowBase):
             # 2. Update Title based on learning state
             if self.do_bg_removal:
                 if data["learning_left"] > 0:
-                    self.ax.set_title(f"🟠 Calibrating Environment... ({data['learning_left']} frames left)", color="orange")
+                    self.ax.set_title(f"Calibrating Environment... ({data['learning_left']} frames left)", color="orange")
                 else:
-                    self.ax.set_title("🟢 Radars Calibrated", color="green", fontweight="bold")
+                    self.ax.set_title("Radars Calibrated", color="green", fontweight="bold")
 
             # 3. Update Fall Log & Title
             if data.get("fall_events"):

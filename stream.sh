@@ -19,6 +19,35 @@ NETMASK="255.255.255.0"                 # Network mask
 CONDA_ENV_NAME="radar"
 
 # ==========================================
+# ARGUMENT PARSING
+# ==========================================
+RUN_INIT=false
+VERSION=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -init)
+            RUN_INIT=true
+            shift
+            ;;
+        -v)
+            if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
+                VERSION="$2"
+                shift 2
+            else
+                echo "🚨 Error: Argument -v require value (ex: t1, t2, f1...)"
+                exit 1
+            fi
+            ;;
+        *)
+            echo "❌ Unknown argument: $1"
+            echo "Usage: $0 [-init] [-v version]"
+            exit 1
+            ;;
+    esac
+done
+
+# ==========================================
 # PATH INDEPENDENCY SETUP
 # ==========================================
 # 1. Start with the directory where launch.sh lives
@@ -68,7 +97,7 @@ echo "----------------------------------"
 # RADAR INITIALIZATION BLOCK (-init)
 # ==========================================
 # Check if the user passed the "-init" argument
-if [ "$1" == "-init" ]; then
+if [ "$RUN_INIT" = true ]; then
     echo "⚡ [-init flag detected] Starting hardware setup..."
     echo "----------------------------------"
 
@@ -210,7 +239,21 @@ if [ "$1" == "-init" ]; then
 fi
 
 # ==========================================
-# PYTHON STREAM PROCESSING (ALWAYS RUNS)
+# PYTHON STREAM PROCESSING (DYNAMIC)
 # ==========================================
-echo "🖥️ Starting processing stream..."
-python -m src.processing.stream
+if [ -n "$VERSION" ]; then
+    STREAM_MODULE="src.processing.demo.stream_${VERSION}"
+    STREAM_FILE="src/processing/demo/stream_${VERSION}.py"
+else
+    # Default version
+    STREAM_MODULE="src.processing.stream"
+    STREAM_FILE="src/processing/stream.py"
+fi
+
+if [ ! -f "$STREAM_FILE" ]; then
+    echo "🚨 Erreur : File does not exist : $STREAM_FILE"
+    exit 1
+fi
+
+echo "🖥️ Starting processing stream ($STREAM_MODULE)..."
+python -m "$STREAM_MODULE"
