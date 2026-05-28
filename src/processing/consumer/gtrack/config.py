@@ -31,6 +31,7 @@ class GTrackConfig2D:
     min_cluster_points: int         # minimum detections to form a new track
     alloc_snr_threshold: float      # minimum summed SNR for a new track
     min_snr_threshold: float        # minimum SNR for a point
+    signal_threshold: float         # minimum normalized signal for a point (0-1)
     init_state_cov: float           # initial covariance for new tracks
     det_to_active_count: int        # DETECTION->ACTIVE transition hit count
     det_to_free_count: int          # DETECTION->FREE transition miss count
