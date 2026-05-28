@@ -227,7 +227,7 @@ class Fuser:
 
             
             to_plot = np.abs(Z_polar)
-            #normalize first 
+            # Normalize first 
             norm_factor = np.max(to_plot)
             if norm_factor > 0:
                 to_plot /= norm_factor
@@ -290,7 +290,7 @@ class Fuser:
 
 
             # --- LOGIQUE DE DETECTION DE CHUTE ---
-            if is_learning:
+            if is_learning or not self.do_fall :
                 fall_events = []
             else:
                 active_ids = {t['uid'] for t in tracks}
