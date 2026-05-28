@@ -99,6 +99,7 @@ class Fuser:
         self.disappear_counter = {} 
         self.DISAPPEAR_LIMIT = 5 # Nombre de frames de tolérance
         self.radar_height = cfg_radar.get("radar_mount_height", 0.0)
+        self.do_fall = cfg_radar["fall_detection_active"]
 
         # ARDUINO OPTIONNEL
         self.arduino = None
