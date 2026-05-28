@@ -66,23 +66,6 @@ class FallDetector:
         n = len(hist)
 
         if n >= 2:
-            # # ------ Regression linéaire ------------
-            # recent_hist = list(self._height_history[uid])[-FALL_WINDOW:]
-            # times   = np.array([t for t, h in recent_hist])
-            # heights = np.array([h for t, h in recent_hist])
-
-            # # Centrer les temps pour la stabilité numérique
-            # times -= times[0]
-
-            # vz_current = np.polyfit(times, heights, deg=1)[0]
-            # vz_prev = self._avg_vz.get(uid, vz_current)
-            
-            # # Weighted average
-            # weights = np.array([0.4, 0.6])
-            # self._avg_vz[uid] = float(float(np.dot([vz_prev, vz_current], weights)))
-            # print(f"[SPEED] uid={uid} avg_vz={self._avg_vz[uid]:.3f} m/s")
-            # # ------ FIN ----------------------------
-
             # Vitesses instantanées entre chaque paire consécutive
             vz_values = []
             for i in range(1, n):
@@ -91,10 +74,7 @@ class FallDetector:
                 dt = t1 - t0             
                 vz = (h1 - h0) / dt
 
-                # Ignore noise spikes
-                # if -6.0 <= vz <= 6.0:
-                # if ((vz <= -6.0) | (6.0 <= vz)):
-                #     continue
+                # Keep numerically only the speed values between these bounds
                 if -5.0 <= vz <= 0.0:
                     vz_values.append(vz)
                 else:
@@ -105,13 +85,6 @@ class FallDetector:
                     self._vz_history[uid] = deque(maxlen=self.vz_window)
                 # Store the most recent raw vz
                 self._vz_history[uid].append(vz_values[-1])
-                # print(f"[SPEED] uid={uid} last_vz={vz_values[-1]:.3f} m/s")
-                # # Recompute weights for actual number of valid intervals
-                # weights = np.arange(1, len(vz_values) + 1, dtype=float) ** 2
-                # weights /= weights.sum()
-                # # weights = np.array([0.15, 0.35, 0.5])
-                # self._avg_vz[uid] = float(np.dot(vz_values, weights))
-                # print(f"[SPEED] uid={uid} avg_vz={self._avg_vz[uid]:.3f} m/s")
 
     def update_with_elevation(
         self,
@@ -181,8 +154,6 @@ class FallDetector:
                 # Average the two radar elevation maps at this range bin
                 sin_el = 0.5 * (np.mean(sin_el_1[:, r_bin]) + np.mean(sin_el_2[:, r_bin]))
                 height_m = r_height + track_range * sin_el
-
-            # print(f"[ELEV] uid={uid} | r_bin={r_bin} | sin_el={sin_el:.4f} | height={height_m:.3f}m")
     
             if now is None:
                 now = time.time()
@@ -202,16 +173,15 @@ class FallDetector:
         """
         new_falls = []
 
-        # Incrémenter le compteur des tracks manquantes
+        # Increment missing falls counter
         missing = set(self.miss_counter.keys()) - active_track_ids
         for tid in missing:
             self.miss_counter[tid] += 1
 
-        # Remettre à zéro les tracks qui sont revenues
+        # Reset tracks that are active again
         for tid in active_track_ids:
             self.miss_counter[tid] = 0
 
-        # Nettoyer les tracks vraiment disparues (> seuil) et alerter
         x_min, x_max, y_min, y_max = self.valid_zone
         for tid, count in list(self.miss_counter.items()):
 
@@ -242,7 +212,6 @@ class FallDetector:
                     continue
                 
                 # ── Vertical-speed gate ──────────────────────────────────────
-                # vz = self._avg_vz.get(tid, 0.0)
                 vz_hist = list(self._vz_history.get(tid, []))
                 if not vz_hist:
                     vz = 0.0
