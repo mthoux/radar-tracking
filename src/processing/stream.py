@@ -132,14 +132,14 @@ def main():
     }
 
     cfg_arduino = {
-        "port": "/dev/tty.usbmodem141201",
+        "port": "/dev/tty.usbmodem1201",
         "warning": False
     }
 
     # Gtrack algorithm configuration
     cfg_gtrack = GTrackConfig2D(
         max_points=200,
-        max_tracks=3,
+        max_tracks=2,
         dt=0.6,
         process_noise=0.05,              # was 0.05 — higher to avoid track stealing
         meas_noise_range=0.5,           # was 2.0 — tighter range gate

@@ -105,7 +105,7 @@ def main():
         "alpha_smoothing": 0.5,  # Facteur de lissage (0.1 = très lent/stable, 0.9 = très nerveux)
         "fall_detection_active": True,
         "debug": {
-            "do_plot_individually": False
+            "do_plot_individually": True
         }
     }
 
@@ -141,19 +141,19 @@ def main():
         max_points=200,
         max_tracks=1,
         dt=0.6,
-        process_noise=0.01,              
-        meas_noise_range=2.0,           
-        meas_noise_az=0.5,              
-        gating_threshold=6,
-        alloc_range_gate=0.8,           
-        alloc_az_gate=np.deg2rad(15),    
+        process_noise=0.05,              # was 0.05 — higher to avoid track stealing
+        meas_noise_range=0.5,           # was 2.0 — tighter range gate
+        meas_noise_az=0.05,              # was 1 — ±6° instead of ±57°
+        gating_threshold=3,
+        alloc_range_gate=0.5,           # was 0.5 — tighter
+        alloc_az_gate=np.deg2rad(7),    # was 10° — tighter
         alloc_vel_gate=20,
-        min_cluster_points=10,
+        min_cluster_points=6,
         alloc_snr_threshold=0.5,
         min_snr_threshold=0.005,
-        signal_threshold=0.3,  # Minimum normalized signal for a point (0-1)
+        signal_threshold=0.6,  # Minimum normalized signal for a point (0-1)
         init_state_cov=1.0,
-        det_to_active_count=3,          
+        det_to_active_count=3,
         det_to_free_count=6,
         act_to_free_count=8,
         presence_zones=[],

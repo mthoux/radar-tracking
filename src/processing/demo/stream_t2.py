@@ -145,18 +145,18 @@ def main():
         meas_noise_range=0.5,           
         meas_noise_az=0.05,              
         gating_threshold=6,
-        alloc_range_gate=0.5,           
-        alloc_az_gate=np.deg2rad(10),   
+        alloc_range_gate=0.5,           # was 0.5 — tighter
+        alloc_az_gate=np.deg2rad(10),    # was 10° — tighter
         alloc_vel_gate=20,
         min_cluster_points=10,
         alloc_snr_threshold=0.5,
         min_snr_threshold=0.005,
-        signal_threshold=0.4,  # Minimum normalized signal for a point (0-1)
+        signal_threshold= 0.4,
         init_state_cov=1.0,
         det_to_active_count=3,          
         det_to_free_count=6,
         act_to_free_count=8,
-        presence_zones=[],
+        presence_zones=[],  
         pres_on_count=5,
         pres_off_count=3
     )
