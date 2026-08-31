@@ -1,86 +1,93 @@
 # Radar Tracking
 
-A radar tracking project using radar data processing techniques.
+This project was developed as part of the Intelligent Systems (COM-304) bachelor course, where the core objective was to design and implement an intelligent system through a hands-on engineering project. 
 
-## Hardware 
+We chose to explore a radar-based approach for human tracking because it provides a reliable foundation for building smart, privacy-preserving monitoring systems. Specifically, the project addresses elderly fall detection—a critical application where continuous oversight is essential, yet traditional alternatives like camera surveillance and wearable devices often present privacy concerns and low user compliance. 
 
-2 FMCW TI 77GHz Radars.
+To resolve these challenges, our system utilizes millimeter-wave radar to track indoor movement and detect motion seamlessly, while an Arduino Uno integrated with an LED and a buzzer establishes a straightforward hardware layer for immediate visual and auditory alerts.
 
-## Getting Started
+## Project deliverables & presentation
 
-Clone the repository:
+This repository includes the academic documents produced during the project.
+For a quick overview of the project, see the presentation.
 
-git clone https://github.com/mthoux/radar-tracking.git
-cd radar-tracking
+- **📄 [Project Proposal](./docs/Project_Proposal.pdf)**
+- **📄 [Project Report](./docs/Project_Report.pdf)** – details on the processing pipeline and evaluation.
+- **📊 [Project Presentation Slides](./docs/Project_Presentation.pdf)** – final project presentation.
 
-Install dependencies:
+## System overview
 
-pip install -r requirements.txt
+The system uses two FMCW TI 77 GHz radars to observe the same indoor scene. Using two sensors improves coverage and robustness by reducing blind spots and making the fused map more reliable than a single-radar setup.
 
-Run the project:
+Each radar generates range-Doppler data that is converted into a polar representation, then synchronized and projected into a common Cartesian frame so that both sensors contribute to the same occupancy map.
 
-c
+The pipeline then works as follows:
+
+- the two radar streams are synchronized and fused with a maximum-intensity strategy to build a single 2D occupancy map;
+- temporal smoothing and background subtraction are applied to suppress static clutter and keep only moving targets;
+- CFAR-like thresholding is used to extract candidate detections above the signal level;
+- the GTrack module performs clustering and Kalman-based tracking to maintain and update target trajectories over time;
+- the fall detection block monitors track disappearance and vertical motion to flag possible falls while reducing false alarms;
+- the Arduino interface receives the alarm state and triggers a visual/auditory feedback signal.
+
+The result is a real-time tracking and alert pipeline that can be visualized live and reused as a base for safety-oriented motion monitoring.
+
+## Hardware
+
+- 2 FMCW TI 77 GHz radars
+- Texas Instruments AWR1843BOOST platform
+- DCA1000 acquisition chain
+- Arduino Uno with LED and buzzer for visual/auditory feedback
+
+## Usage
+
+### 1. Make the launcher executable
+
+```bash
+chmod +x ./stream.sh
 ```
-radar-tracking/
-└── src/            # Core source code
+
+### 2. Initialize the radars
+
+This starts the radar acquisition process:
+
+```bash
+./stream.sh -init
 ```
 
-## 💡 Context & Motivation
+### 3. Start the streaming and processing pipeline
 
-### The Public Health Challenge
-* [cite_start]**Critical Risk:** 1/3 of adults aged 65+ fall each year, making it the leading cause of accidental death among older adults[cite: 4, 5, 8].
-* [cite_start]**The "Long Lie" Risk:** Lying on the floor for more than an hour drastically increases complications, leading to a 50% mortality rate within 6 months[cite: 32, 34].
+Once the radars are already running, you can launch the system normally with:
 
-### Why mmWave Radars over Cameras?
-[cite_start]Privacy preservation is a major concern: **80% to 90% of older adults refuse optical cameras** in private spaces like bedrooms or bathrooms[cite: 36, 38, 40]. 
+```bash
+./stream.sh
+```
 
-[cite_start]Our system uses **TI mmWave Radars** to guarantee 100% anonymized, passive, and fully automatic sensing[cite: 48, 66, 68, 78, 86]:
+This starts the stream and processing workflow without needing to restart the radars unless a new initialization is required.
 
-| Metric | Optical Cameras | Wearables (Bracelets) | Radar mmWave (Ours) |
-| :--- | :---: | :---: | :---: |
-| **Privacy Preservation** | [cite_start]Low [cite: 75] | [cite_start]High [cite: 67] | [cite_start]**Superior (Anonymized)** [cite: 68] |
-| **Auto-Detection** | [cite_start]Yes [cite: 73] | [cite_start]No (Manual Action) [cite: 80] | [cite_start]**Fully Automatic** [cite: 78] |
-| **Low Light / Bathroom** | [cite_start]Non [cite: 70] | [cite_start]Yes [cite: 83] | [cite_start]**Yes (RF Sensing)** [cite: 84] |
-| **User Compliance** | [cite_start]Low [cite: 75] | [cite_start]Medium (Often forgotten) [cite: 85] | [cite_start]**High (Passive sensing)** [cite: 86] |
+## References
 
-## 📂 Project Deliverables & Reports
-
-This repository contains the complete documentation, academic reports, and presentations for this Bachelor project:
-
-* **📄 [Project Proposal](./docs/Project_Proposal.pdf)**
-* **📄 [Project Report](./docs/Project_Report.pdf)** – A comprehensive deep dive into the asynchronous signal processing pipeline, architectural choices, and performance evaluation.
-* **📊 [Project Presentation Slides](./docs/Project_Presentation.pdf)** – The defense slide deck covering the public health challenges, technology comparisons, and live tracking results.
-
-# Usage
-
-Start streaming with executing ./stream.sh 
-
-Start giving it the rights : chmod +x ./stream.sh
-
-Launch first with -init flag to launch the data acquisition of the radars : ./stream.sh -init
-
-When radars started you can then simply type ./stream.sh to launch streaming and processing again without the need of starting radar if already running.
-
-# References 
-
-AWR1843BOOST DOC : https://www.ti.com/lit/ug/tidueo9/tidueo9.pdf?ts=1779243139006
+- AWR1843BOOST documentation: https://www.ti.com/lit/ug/tidueo9/tidueo9.pdf?ts=1779243139006
 
 ## 👥 Authors
-* **[@mthoux](https://github.com/mthoux)**
-* **[@Romain-du-25](https://github.com/Romain-du-25)**
-* **[@DrMoebius1](https://github.com/DrMoebius1)**
+
+- **[@mthoux](https://github.com/mthoux)**
+- **[@Romain-du-25](https://github.com/Romain-du-25)**
+- **[@DrMoebius1](https://github.com/DrMoebius1)**
 
 ---
 
 ## 🤝 Acknowledgements / Credits
-This project is built upon and extends the work of previous academic and open-source contributors:
 
-* **COM-304 Previous Year Project:** This repository is a direct continuation and evolution of the radar pipeline developed by the previous student cohort at [COM-304-Group-2/COM-304-Radars](https://github.com/COM-304-Group-2/COM-304-Radars).
-* **Texas Instruments mmWave GTrack:** The tracking submodule inside `src/processing/consumer/gtrack` is implemented based on Texas Instruments' multi-target tracking algorithms.
-* **OpenRadar Platform:** The base DCA1000 parsing modules utilize algorithms from the [OpenRadar Project](https://github.com/OpenRadar/OpenRadar), originally licensed under the **Apache License 2.0**.
-* **mmwavecapture-std:** The hardware abstraction layer and advanced socket communication configurations in `src/mmwave/mmwavecapture` are adapted from the `mmwavecapture` library by **Louie Lu (<louielu@cs.unc.edu>)**, originally licensed under the **BSD 3-Clause License**.
+This project builds on previous academic and open-source work:
+
+- **COM-304 Previous Year Project:** continuation of the radar tracking pipeline developed by the previous cohort at [COM-304-Group-2/COM-304-Radars](https://github.com/COM-304-Group-2/COM-304-Radars).
+- **Texas Instruments mmWave GTrack:** the tracking logic in `src/processing/consumer/gtrack` is based on Texas Instruments multi-target tracking algorithms.
+- **OpenRadar Platform:** the DCA1000 parsing modules rely on algorithms from the [OpenRadar Project](https://github.com/OpenRadar/OpenRadar), originally licensed under the **Apache License 2.0**.
+- **mmwavecapture-std:** the hardware abstraction and communication layer in `src/mmwave/mmwavecapture` are adapted from the `mmwavecapture` library by **Louie Lu (<louielu@cs.unc.edu>)**, originally licensed under the **BSD 3-Clause License**.
 
 ---
 
 ## 📄 License
-This project itself is licensed under the **MIT License**. Feel free to fork it, experiment with it, share it, or use it as educational material!
+
+This project is licensed under the **MIT License**. Feel free to fork, experiment, share, or use it as educational material.
