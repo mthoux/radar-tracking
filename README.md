@@ -72,7 +72,7 @@ This starts the stream and processing workflow without needing to restart the ra
 
 - AWR1843BOOST documentation: https://www.ti.com/lit/ug/tidueo9/tidueo9.pdf?ts=1779243139006
 
-## 👥 Authors
+## Authors
 
 - **[@mthoux](https://github.com/mthoux)**
 - **[@Romain-du-25](https://github.com/Romain-du-25)**
@@ -80,7 +80,7 @@ This starts the stream and processing workflow without needing to restart the ra
 
 ---
 
-## 🤝 Acknowledgements / Credits
+## Acknowledgements / Credits
 
 This project builds on previous academic and open-source work:
 
@@ -91,6 +91,6 @@ This project builds on previous academic and open-source work:
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License**. Feel free to fork, experiment, share, or use it as educational material.
