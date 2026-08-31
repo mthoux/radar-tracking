@@ -6,6 +6,10 @@ We chose to explore a radar-based approach for human tracking because it provide
 
 To resolve these challenges, our system utilizes millimeter-wave radar to track indoor movement and detect motion seamlessly, while an Arduino Uno integrated with an LED and a buzzer establishes a straightforward hardware layer for immediate visual and auditory alerts.
 
+![AWR1843BOOST radar board](./docs/images/awr1642boost.jpg)
+![Radar tracking overview](./docs/images/screen_overview.jpeg)
+![Tracking demo](./docs/images/tracking_demo.gif)
+
 ## Project deliverables & presentation
 
 This repository includes the academic documents produced during the project.
